@@ -1,0 +1,107 @@
+<title>Ateliê</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700&family=Geist:wght@400;500;600&family=Geist+Mono:wght@500&display=swap">
+<style>
+/* Layout: one slim tool bar on top, the active studio fills everything below it. Each tab carries its tool's own accent. */
+:root{
+  --bar:#f7f6f4; --line:#dedbd6; --fg:#17161a; --muted:#6c6873; --hover:#ecebe7; --sel:#ffffff; --stage:#e9e8e4;
+  --c-type:#1d5f7a; --c-carousel:#e39a17; --c-dots:#c2185b; --c-gradient:#3040d8;
+  --display:"Bricolage Grotesque","Geist",system-ui,sans-serif;
+  --ui:"Geist",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"Geist Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bar:#121216; --line:#26252c; --fg:#ebe9ee; --muted:#8f8b98; --hover:#1c1b21; --sel:#24232a; --stage:#0b0b0e;
+  --c-type:#bfe3f0; --c-carousel:#ffb02e; --c-dots:#ff6fa4; --c-gradient:#8c9aff; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bar:#121216; --line:#26252c; --fg:#ebe9ee; --muted:#8f8b98; --hover:#1c1b21; --sel:#24232a; --stage:#0b0b0e;
+  --c-type:#bfe3f0; --c-carousel:#ffb02e; --c-dots:#ff6fa4; --c-gradient:#8c9aff; color-scheme:dark}
+html,body{height:100%}
+body{background:var(--stage);color:var(--fg);font:13px/1.4 var(--ui);overflow:hidden}
+*{box-sizing:border-box}
+.shell{height:100%;display:grid;grid-template-rows:auto minmax(0,1fr)}
+.bar{display:flex;align-items:center;gap:18px;padding-block:7px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));background:var(--bar);border-bottom:1px solid var(--line);min-width:0}
+.brand{display:flex;align-items:center;gap:9px;font:700 17px/1 var(--display);letter-spacing:-.02em;flex:none}
+.brand i{width:18px;height:18px;border-radius:5px;background:conic-gradient(var(--c-type) 0 25%,var(--c-carousel) 0 50%,var(--c-dots) 0 75%,var(--c-gradient) 0)}
+nav{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;min-width:0;flex:1}
+nav::-webkit-scrollbar{display:none}
+.tab{flex:none;display:flex;align-items:center;gap:8px;border:1px solid transparent;background:none;color:var(--muted);border-radius:8px;padding:6px 12px 6px 10px;cursor:pointer;font:500 13px var(--ui)}
+.tab:hover{background:var(--hover);color:var(--fg)}
+.tab .dot{width:8px;height:8px;border-radius:50%;background:var(--tc);opacity:.55}
+.tab small{font:500 10px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);opacity:.8}
+.tab[aria-selected="true"]{background:var(--sel);color:var(--fg);border-color:var(--line);box-shadow:inset 0 -2px 0 var(--tc)}
+.tab[aria-selected="true"] .dot{opacity:1}
+.tab:focus-visible{outline:2px solid var(--tc);outline-offset:1px}
+.hint{flex:none;font:500 10.5px var(--mono);color:var(--muted)}
+.frames{position:relative;min-height:0}
+.frames iframe{position:absolute;inset:0;width:100%;height:100%;border:0;display:block;background:var(--stage)}
+@media (max-width:760px){.tab small,.hint{display:none}.bar{gap:10px}.brand span{display:none}}
+</style>
+
+<div class="shell">
+  <header class="bar">
+    <div class="brand"><i aria-hidden="true"></i><span>Ateliê</span></div>
+    <nav role="tablist" aria-label="Tools" id="tabs"></nav>
+    <span class="hint">Alt + 1–4</span>
+  </header>
+  <div class="frames" id="frames"></div>
+</div>
+
+<script>
+(() => {
+'use strict';
+const APPS = /*APPS*/{};
+const TOOLS = [
+  {id:'type', name:'Typeshift', kind:'Kinetic type', color:'--c-type'},
+  {id:'carousel', name:'Carrossel', kind:'Carousels', color:'--c-carousel'},
+  {id:'dots', name:'Dotwash', kind:'Halftone', color:'--c-dots'},
+  {id:'gradient', name:'Loopwash', kind:'Gradients', color:'--c-gradient'},
+];
+const tabs = document.getElementById('tabs'), frames = document.getElementById('frames');
+const loaded = {};
+TOOLS.forEach((t, i) => {
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'tab'; b.id = 'tab-' + t.id; b.setAttribute('role', 'tab');
+  b.style.setProperty('--tc', `var(${t.color})`);
+  b.innerHTML = `<span class="dot" aria-hidden="true"></span>${t.name}<small>${t.kind}</small>`;
+  b.title = `${t.name} (Alt+${i + 1})`;
+  b.addEventListener('click', () => show(t.id));
+  tabs.appendChild(b);
+});
+let current = null;
+function show(id){
+  if (!APPS[id]) id = TOOLS[0].id;
+  if (!loaded[id]) {
+    const f = document.createElement('iframe');
+    f.title = TOOLS.find(t => t.id === id).name;
+    f.setAttribute('allow', 'fullscreen; clipboard-write');
+    f.srcdoc = APPS[id];
+    f.addEventListener('load', () => { try { f.contentWindow.addEventListener('keydown', hotkey); } catch (e) {} });
+    frames.appendChild(f); loaded[id] = f;
+  }
+  for (const k in loaded) loaded[k].hidden = k !== id;
+  TOOLS.forEach(t => document.getElementById('tab-' + t.id).setAttribute('aria-selected', String(t.id === id)));
+  current = id;
+  try { localStorage.setItem('atelie-tab', id); } catch (e) {}
+  if (location.hash.slice(1) !== id) try { history.replaceState(null, '', '#' + id); } catch (e) {}
+  try { loaded[id].contentWindow.focus(); } catch (e) {}
+}
+function hotkey(e){
+  if (!e.altKey || e.ctrlKey || e.metaKey) return;
+  const n = parseInt(e.code.replace('Digit', ''), 10);
+  if (n >= 1 && n <= TOOLS.length) { e.preventDefault(); show(TOOLS[n - 1].id); }
+}
+document.addEventListener('keydown', hotkey);
+tabs.addEventListener('keydown', e => {
+  if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+  const i = TOOLS.findIndex(t => t.id === current), j = (i + (e.key === 'ArrowRight' ? 1 : -1) + TOOLS.length) % TOOLS.length;
+  show(TOOLS[j].id); document.getElementById('tab-' + TOOLS[j].id).focus();
+});
+window.addEventListener('hashchange', () => { const h = location.hash.slice(1); if (APPS[h] && h !== current) show(h); });
+let start = location.hash.slice(1);
+if (!APPS[start]) { try { start = localStorage.getItem('atelie-tab') || ''; } catch (e) { start = ''; } }
+show(start);
+})();
+</script>

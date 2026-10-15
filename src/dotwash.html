@@ -1,0 +1,1081 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="Halftone loop generator: patterns, text or images as dot screens with motion presets, exported as GIF, MP4 or PNG.">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>Dotwash</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Schibsted+Grotesk:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: sticky preview stage + preset shelf on the left, control rail on the right (sibling of Loopwash). */
+:root{
+  --bg:#eeedf0; --panel:#fcfbfd; --sunk:#e5e3e9; --line:#d8d5de; --line-strong:#bcb8c5;
+  --text:#18161c; --muted:#655f6f; --faint:#8e8899;
+  --accent:#c2185b; --accent-ink:#ffffff; --accent-soft:#f8dde8;
+  --ok:#1d7a4f; --warn:#a4541a; --stage:#dcd9e0;
+  --sans:"Schibsted Grotesk", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#0f0e12; --panel:#17151b; --sunk:#1f1c24; --line:#2a2630; --line-strong:#3f3a47;
+    --text:#ebe8ef; --muted:#9a93a6; --faint:#6e6879;
+    --accent:#ff6fa4; --accent-ink:#17151b; --accent-soft:#3a1f2c;
+    --ok:#5fcf97; --warn:#f0a36a; --stage:#09080b;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#0f0e12; --panel:#17151b; --sunk:#1f1c24; --line:#2a2630; --line-strong:#3f3a47;
+  --text:#ebe8ef; --muted:#9a93a6; --faint:#6e6879;
+  --accent:#ff6fa4; --accent-ink:#17151b; --accent-soft:#3a1f2c;
+  --ok:#5fcf97; --warn:#f0a36a; --stage:#09080b;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.45;padding:0 20px;padding-block:18px 40px}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.top{max-width:1400px;margin:0 auto 16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.mark{display:flex;align-items:center;gap:10px}
+.mark-dot{width:22px;height:22px;border-radius:4px;background:radial-gradient(circle,var(--accent) 38%,transparent 42%) 0 0/5.5px 5.5px}
+.mark h1{font-size:19px;font-weight:700;letter-spacing:-.02em;margin:0}
+.top p{margin:0;color:var(--muted);font-size:13px}
+.top .spacer{flex:1}
+.kbd{font-family:var(--mono);font-size:11px;color:var(--faint)}
+
+.app{max-width:1400px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:20px;align-items:start}
+@media (max-width:980px){.app{grid-template-columns:minmax(0,1fr)}}
+.stage-col{position:sticky;top:calc(env(safe-area-inset-top,0px) + 12px);display:flex;flex-direction:column;gap:14px;min-width:0}
+@media (max-width:980px){.stage-col{position:static}}
+.stage{background:var(--stage);border-radius:14px;display:grid;place-items:center;padding:18px;padding-bottom:30px;min-height:220px;position:relative}
+.stage.drag{outline:2px dashed var(--accent);outline-offset:-8px}
+#view{display:block;border-radius:3px;box-shadow:0 1px 2px rgba(0,0,0,.12),0 10px 30px rgba(0,0,0,.12)}
+.stage-meta{position:absolute;left:18px;bottom:9px;right:18px;display:flex;justify-content:space-between;font-family:var(--mono);font-size:10.5px;color:var(--faint);letter-spacing:.02em;pointer-events:none}
+
+.transport{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.icon-btn{width:38px;height:38px;border-radius:50%;border:1px solid var(--line-strong);background:var(--panel);display:grid;place-items:center;flex:none}
+.icon-btn:hover{border-color:var(--accent)}
+.icon-btn svg{width:14px;height:14px;fill:currentColor}
+.scrub{flex:1;min-width:160px}
+.tc{font-family:var(--mono);font-size:12.5px;font-variant-numeric:tabular-nums;color:var(--muted);white-space:nowrap}
+.tc b{color:var(--text);font-weight:500}
+.chip{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;padding:4px 8px;border-radius:99px;background:var(--accent-soft);color:var(--accent);white-space:nowrap}
+
+.section-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:0}
+.section-h h2{font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin:0}
+.section-h .aside{font-size:12px;color:var(--faint)}
+.link-btn{background:none;border:0;padding:0;color:var(--accent);font-size:12.5px;font-weight:500}
+.link-btn:hover{text-decoration:underline}
+
+.presets{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:10px;margin-top:10px}
+.preset{position:relative;background:none;border:0;padding:0;text-align:left;display:flex;flex-direction:column;gap:6px;min-width:0}
+.preset canvas{width:100%;aspect-ratio:1/1;border-radius:6px;display:block;outline:1px solid rgba(0,0,0,.06);outline-offset:-1px;transition:transform .15s}
+.preset:hover canvas{transform:translateY(-2px)}
+.preset .row{display:flex;justify-content:space-between;align-items:baseline;gap:6px;min-width:0}
+.preset span{font-size:12.5px;font-weight:500;padding-left:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.preset small{font-family:var(--mono);font-size:10px;color:var(--faint);text-transform:uppercase;letter-spacing:.05em;flex:none}
+.preset .del{position:absolute;top:5px;right:5px;width:22px;height:22px;border-radius:50%;border:0;background:rgba(0,0,0,.55);color:#fff;font-size:13px;line-height:1;display:grid;place-items:center;opacity:0;transition:opacity .15s}
+.preset:hover .del,.preset .del:focus-visible{opacity:1}
+@media (hover:none){.preset .del{opacity:1}}
+
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;display:flex;flex-direction:column;min-width:0}
+.group{padding:16px 18px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:12px}
+.group:first-child{border-top:0}
+.hint{font-size:12.5px;color:var(--muted);margin:0}
+.stack{display:flex;flex-direction:column;gap:12px}
+
+.styles{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.style-btn{background:none;border:1px solid transparent;border-radius:9px;padding:4px 4px 6px;display:flex;flex-direction:column;gap:5px;align-items:stretch;min-width:0}
+.style-btn canvas{width:100%;aspect-ratio:1/1;border-radius:5px;display:block}
+.style-btn span{font-size:12px;font-weight:500;text-align:center;color:var(--muted)}
+.style-btn[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}
+.style-btn[aria-pressed="true"] span{color:var(--text)}
+
+.shapes{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.shape-btn{border:1px solid var(--line);background:none;border-radius:9px;padding:8px 4px 6px;display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--muted)}
+.shape-btn svg{width:22px;height:22px;fill:currentColor}
+.shape-btn span{font-size:11.5px;font-weight:500}
+.shape-btn[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft);color:var(--text)}
+
+.color-row{display:grid;grid-template-columns:34px minmax(0,1fr) 92px;gap:8px;align-items:center}
+.swatch{position:relative;width:34px;height:30px;border-radius:7px;overflow:hidden;box-shadow:inset 0 0 0 1px rgba(0,0,0,.15)}
+.swatch input{position:absolute;inset:-8px;width:calc(100% + 16px);height:calc(100% + 16px);border:0;padding:0;cursor:pointer;opacity:0}
+.hex{font-family:var(--mono);font-size:12.5px;text-transform:uppercase;background:var(--sunk);border:1px solid transparent;border-radius:7px;padding:5px 8px;width:100%;min-width:0}
+.hex:focus{border-color:var(--accent);outline:none}
+.role{font-size:12px;color:var(--muted)}
+.color-row.off .swatch,.color-row.off .hex{opacity:.35}
+.palettes{display:flex;flex-wrap:wrap;gap:6px}
+.pal{width:34px;height:24px;border-radius:6px;border:0;padding:0;position:relative;box-shadow:inset 0 0 0 1px rgba(0,0,0,.12);overflow:hidden}
+.pal::after{content:"";position:absolute;inset:0;background:radial-gradient(circle,var(--ink) 34%,transparent 38%) 0 0/6px 6px}
+.color-actions{display:flex;gap:8px;flex-wrap:wrap}
+.pill-btn{border:1px solid var(--line-strong);background:none;border-radius:99px;padding:5px 12px;font-size:12.5px;font-weight:500}
+.pill-btn:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.pill-btn:disabled{opacity:.4;cursor:default}
+.pill-btn[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft);color:var(--text)}
+
+.ctl{display:flex;flex-direction:column;gap:4px;min-width:0}
+.ctl-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.ctl label,.lbl{font-size:13px;font-weight:500}
+.ctl output{font-family:var(--mono);font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:20px;background:none;margin:0}
+input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:4px;background:linear-gradient(to right,var(--accent) var(--p,50%),var(--line) var(--p,50%))}
+input[type=range]::-moz-range-track{height:4px;border-radius:4px;background:var(--line)}
+input[type=range]::-moz-range-progress{height:4px;border-radius:4px;background:var(--accent)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:var(--panel);border:2px solid var(--accent);margin-top:-6px}
+input[type=range]::-moz-range-thumb{width:12px;height:12px;border-radius:50%;background:var(--panel);border:2px solid var(--accent)}
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
+
+.seg{display:flex;background:var(--sunk);border-radius:9px;padding:3px;gap:3px}
+.seg button{flex:1;border:0;background:none;border-radius:7px;padding:6px 8px;font-size:13px;font-weight:500;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--panel);color:var(--text);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.field label{font-size:12px;color:var(--muted)}
+select,textarea{width:100%;background:var(--sunk);border:1px solid transparent;border-radius:8px;padding:7px 8px;font-size:13px}
+textarea{resize:vertical;min-height:64px;font-family:var(--mono);font-size:13px;line-height:1.4}
+select:focus,textarea:focus{border-color:var(--accent);outline:none}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.drop{border:1.5px dashed var(--line-strong);border-radius:10px;padding:12px;display:flex;align-items:center;gap:12px;background:none;text-align:left;width:100%}
+.drop:hover{border-color:var(--accent)}
+.drop canvas{width:48px;height:48px;border-radius:6px;flex:none;background:#000}
+.drop .t{display:flex;flex-direction:column;gap:2px;min-width:0}
+.drop b{font-weight:600;font-size:13px}
+.drop small{font-family:var(--mono);font-size:11px;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.summary{font-family:var(--mono);font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums;line-height:1.6}
+.fontpick{border:1px solid var(--line);border-radius:10px;overflow:hidden;display:flex;flex-direction:column;min-width:0}
+.fp-current{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:10px 12px;background:var(--sunk);min-width:0}
+.fp-current b{font-size:22px;font-weight:400;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.fp-current small{font-family:var(--mono);font-size:10.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.05em;flex:none}
+.fp-search{border:0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:var(--panel);padding:9px 12px;font-size:13px;width:100%;min-width:0}
+.fp-search:focus{outline:none;background:var(--accent-soft)}
+.fp-cats{display:flex;gap:4px;padding:8px 8px 6px;overflow-x:auto;scrollbar-width:none}
+.fp-cats button{border:1px solid var(--line);background:none;border-radius:99px;padding:3px 9px;font-size:12px;font-weight:500;color:var(--muted);white-space:nowrap}
+.fp-cats button[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft);color:var(--text)}
+.fp-list{height:230px;overflow-y:auto;display:flex;flex-direction:column;padding:2px 4px 6px;overscroll-behavior:contain}
+.fp-row{display:flex;align-items:baseline;justify-content:space-between;gap:10px;border:0;background:none;text-align:left;padding:6px 8px;border-radius:7px;min-width:0}
+.fp-row span{font-size:19px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.fp-row small{font-family:var(--mono);font-size:10px;color:var(--faint);text-transform:uppercase;letter-spacing:.05em;flex:none}
+.fp-row:hover{background:var(--sunk)}
+.fp-row[aria-selected="true"]{background:var(--accent-soft)}
+.fp-row.missing span{opacity:.4}
+.fp-row.load span{font-family:var(--sans);font-size:13px;font-weight:600;color:var(--accent)}
+.fp-foot{font-family:var(--mono);font-size:10.5px;color:var(--faint);padding:6px 12px;border-top:1px solid var(--line)}
+.fp-note{font-size:12px;color:var(--warn);margin:0;min-height:0}
+.primary{border:0;border-radius:10px;background:var(--accent);color:var(--accent-ink);padding:12px 14px;font-weight:600;font-size:14px}
+.primary:hover:not(:disabled){filter:brightness(1.08)}
+.primary:disabled{opacity:.55;cursor:default}
+.progress{height:6px;border-radius:6px;background:var(--sunk);overflow:hidden}
+.progress i{display:block;height:100%;width:0;background:var(--accent);transition:width .1s}
+.status{font-size:12.5px;color:var(--muted);min-height:1.2em;margin:0}
+.status.err{color:var(--warn)}
+.status.ok{color:var(--ok)}
+.result{display:flex;gap:12px;align-items:center;background:var(--sunk);border-radius:10px;padding:10px}
+.result .thumb{width:84px;flex:none;border-radius:5px;display:block;background:#000}
+.result .info{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
+.result .name{font-family:var(--mono);font-size:11.5px;word-break:break-all}
+.save-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.save-name{display:flex;gap:6px;margin-top:10px}
+.save-name input{flex:1;min-width:0;background:var(--sunk);border:1px solid transparent;border-radius:8px;padding:6px 9px;font-size:13px}
+.save-name input:focus{border-color:var(--accent);outline:none}
+@media (prefers-reduced-motion:reduce){.preset canvas{transition:none}}
+</style>
+
+<header class="top">
+  <div class="mark"><div class="mark-dot" aria-hidden="true"></div><h1>Dotwash</h1></div>
+  <p>Halftone loops from patterns, type and images. Export as GIF, MP4 or PNG.</p>
+  <div class="spacer"></div>
+  <span class="kbd">Space · play/pause · drop an image on the preview</span>
+</header>
+
+<main class="app">
+  <section class="stage-col" aria-label="Preview">
+    <div class="stage" id="stage">
+      <canvas id="view" aria-label="Live halftone preview"></canvas>
+      <div class="stage-meta"><span id="metaDims">640 × 640</span><span id="metaStyle">Blobs · Circle</span></div>
+    </div>
+    <div class="transport">
+      <button class="icon-btn" id="playBtn" aria-label="Pause"><svg viewBox="0 0 14 14" id="playIcon"><rect x="2" y="1" width="3.5" height="12" rx="1"/><rect x="8.5" y="1" width="3.5" height="12" rx="1"/></svg></button>
+      <input type="range" class="scrub" id="scrub" min="0" max="1000" value="0" aria-label="Loop position">
+      <span class="tc" id="tc"><b>00:00:00</b> / 00:06:00</span>
+      <span class="chip" title="The last frame flows straight into the first">Seamless loop</span>
+    </div>
+    <div>
+      <div class="section-h"><h2>Presets</h2><button class="link-btn" id="savePresetToggle">Save current as preset</button></div>
+      <div class="save-name" id="saveNameRow" hidden>
+        <input id="presetName" type="text" placeholder="Preset name" maxlength="28" aria-label="Preset name">
+        <button class="pill-btn" id="savePresetBtn">Save</button>
+      </div>
+      <div class="presets" id="presets"></div>
+    </div>
+  </section>
+
+  <aside class="panel" aria-label="Controls">
+    <div class="group">
+      <div class="section-h"><h2>Source</h2><span class="aside" id="srcAside">Generated pattern</span></div>
+      <div class="seg" id="srcSeg"><button data-v="pattern">Pattern</button><button data-v="text">Text</button><button data-v="image">Image</button></div>
+      <div class="stack" id="textCtls">
+        <div class="field"><label for="textIn">Text (new line for each row)</label><textarea id="textIn" rows="2" spellcheck="false"></textarea></div>
+        <div class="field"><label for="fontSearch">Typeface · Google Fonts</label>
+          <div class="fontpick">
+            <div class="fp-current"><b id="fpCurName">Anton</b><small id="fpCurMeta">Display · 400</small></div>
+            <input id="fontSearch" class="fp-search" type="search" placeholder="Search families, or type any Google Fonts name" autocomplete="off" spellcheck="false">
+            <div class="fp-cats" id="fontCats"></div>
+            <div class="fp-list" id="fontList" role="listbox" aria-label="Google Fonts families"></div>
+            <div class="fp-foot" id="fontFoot"></div>
+          </div>
+        </div>
+        <p class="fp-note" id="fontNote" role="status"></p>
+        <div class="field"><label for="weightSel">Weight</label>
+          <select id="weightSel">
+            <option value="100">100 Thin</option><option value="200">200 Extra Light</option><option value="300">300 Light</option><option value="400">400 Regular</option>
+            <option value="500">500 Medium</option><option value="600">600 Semibold</option><option value="700">700 Bold</option><option value="800">800 Extra Bold</option><option value="900">900 Black</option>
+          </select></div>
+        <div class="stack" id="textSliders"></div>
+      </div>
+      <div class="stack" id="imageCtls">
+        <button class="drop" id="dropBtn" type="button"><canvas id="imgThumb" width="96" height="96"></canvas><span class="t"><b>Choose an image</b><small id="imgName">Sample image</small></span></button>
+        <input type="file" id="fileIn" accept="image/*" hidden>
+        <div class="two">
+          <div class="ctl"><span class="lbl">Fit</span><div class="seg" id="fitSeg"><button data-v="cover">Fill</button><button data-v="contain">Fit</button></div></div>
+          <div class="ctl"><span class="lbl">Dot color</span><div class="seg" id="imgColorSeg"><button data-v="0">Palette</button><button data-v="1">Image</button></div></div>
+        </div>
+        <div class="stack" id="imageSliders"></div>
+      </div>
+      <p class="hint" id="srcHint"></p>
+    </div>
+
+    <div class="group">
+      <div class="section-h"><h2>Motion</h2><span class="aside" id="motionName">Blobs</span></div>
+      <div class="styles" id="styles"></div>
+      <p class="hint" id="motionHint"></p>
+      <div class="stack" id="motionCtls"></div>
+    </div>
+
+    <div class="group">
+      <div class="section-h"><h2>Halftone</h2><span class="aside" id="shapeName">Circle</span></div>
+      <div class="shapes" id="shapes"></div>
+      <div class="stack" id="dotCtls"></div>
+      <div class="two">
+        <div class="ctl"><span class="lbl">Dots on</span><div class="seg" id="invertSeg"><button data-v="0">Light</button><button data-v="1">Dark</button></div></div>
+        <div class="ctl"><span class="lbl">Edges</span><div class="seg" id="crispSeg"><button data-v="0">Smooth</button><button data-v="1">Crisp</button></div></div>
+      </div>
+    </div>
+
+    <div class="group">
+      <div class="section-h"><h2>Colors</h2></div>
+      <div class="palettes" id="palettes" aria-label="Quick palettes"></div>
+      <div class="stack" id="colors" style="gap:8px"></div>
+      <div class="color-actions">
+        <button class="pill-btn" id="twoToneBtn" aria-pressed="false">Two-tone dots</button>
+        <button class="pill-btn" id="swapBtn">Swap background and ink</button>
+      </div>
+    </div>
+
+    <div class="group">
+      <div class="section-h"><h2>Export</h2></div>
+      <div class="seg" id="formatSeg"><button data-v="gif">GIF</button><button data-v="mp4">MP4</button><button data-v="png">PNG still</button></div>
+      <div class="grid3">
+        <div class="field"><label for="aspect">Ratio</label>
+          <select id="aspect"><option>1:1</option><option>4:5</option><option>16:9</option><option>9:16</option><option>3:2</option></select></div>
+        <div class="field"><label for="size">Long side</label><select id="size"></select></div>
+        <div class="field" id="fpsField"><label for="fps">Frame rate</label><select id="fps"></select></div>
+      </div>
+      <div class="summary" id="summary"></div>
+      <button class="primary" id="exportBtn">Export GIF</button>
+      <div class="progress" id="progress" hidden><i id="progressBar"></i></div>
+      <p class="status" id="status" role="status"></p>
+      <div class="result" id="result" hidden>
+        <div id="resultThumb"></div>
+        <div class="info">
+          <div class="name" id="resultName"></div>
+          <div class="save-row"><button class="pill-btn" id="saveAgain">Save file</button><span class="summary" id="resultSize"></span></div>
+        </div>
+      </div>
+    </div>
+  </aside>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/mp4-muxer@5.1.3/build/mp4-muxer.js"></script>
+<script>
+(() => {
+"use strict";
+const $ = id => document.getElementById(id);
+
+/* ---------- Color helpers ---------- */
+function hexToRgb(h){ h=h.replace('#',''); if(h.length===3) h=h.split('').map(x=>x+x).join(''); const n=parseInt(h,16); return [(n>>16)&255,(n>>8)&255,n&255]; }
+const hex01 = h => hexToRgb(h).map(v=>v/255);
+const validHex = h => /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.test(h);
+const normHex = h => { h=h.trim(); if(!h.startsWith('#')) h='#'+h; if(h.length===4) h='#'+h.slice(1).split('').map(x=>x+x).join(''); return h.toLowerCase(); };
+
+/* ---------- Google Fonts catalogue (s sans, r serif, d display, h handwriting, m mono) ---------- */
+const FONT_DATA = {
+s:"ABeeZee,Abel,Advent Pro,Afacad,Alata,Albert Sans,Aldrich,Alegreya Sans,Alegreya Sans SC,Alexandria,Almarai,Amiko,Anaheim,Andika,Anek Latin,Antic,Anuphan,Anybody,Archivo,Archivo Narrow,Arimo,Armata,Arsenal,Asap,Asap Condensed,Assistant,Athiti,Atkinson Hyperlegible,Average Sans,Bai Jamjuree,Barlow,Barlow Condensed,Barlow Semi Condensed,Basic,Be Vietnam Pro,Belleza,BenchNine,Big Shoulders Text,Bricolage Grotesque,Cabin,Cabin Condensed,Cagliostro,Cairo,Cambay,Candal,Cantarell,Carme,Catamaran,Chakra Petch,Changa,Chivo,Commissioner,Convergence,Darker Grotesque,Didact Gothic,DM Sans,Dosis,Duru Sans,Electrolize,Encode Sans,Encode Sans Condensed,Encode Sans Expanded,Encode Sans Semi Condensed,Epilogue,Exo,Exo 2,Federo,Figtree,Fira Sans,Fira Sans Condensed,Fira Sans Extra Condensed,Fjalla One,Francois One,Funnel Sans,Gabarito,Gafata,Gantari,Geist,Geologica,Golos Text,Gothic A1,Gudea,Hanken Grotesk,Heebo,Hind,Hind Madurai,Hind Siliguri,Hind Vadodara,Homenaje,Host Grotesk,IBM Plex Sans,IBM Plex Sans Arabic,IBM Plex Sans Condensed,Imprima,Inclusive Sans,Inder,Instrument Sans,Inter,Inter Tight,Istok Web,Jaldi,Josefin Sans,Jost,Julius Sans One,K2D,Kanit,Kantumruy Pro,Karla,Khand,Kodchasan,Kosugi Maru,Krona One,Krub,Kumbh Sans,Lato,League Spartan,Lexend,Lexend Deca,Lexend Exa,Lexend Giga,Lexend Mega,Lexend Peta,Lexend Tera,Lexend Zetta,Libre Franklin,M PLUS 1p,M PLUS Rounded 1c,Mada,Magra,Mako,Mandali,Manrope,Martel Sans,Marvel,Maven Pro,Merriweather Sans,Metrophobic,Michroma,Mitr,Molengo,Montserrat,Montserrat Alternates,Mukta,Mulish,Murecho,Nanum Gothic,News Cycle,Niramit,Nobile,Noto Sans,Noto Sans Display,Noto Sans JP,Noto Sans KR,Noto Sans SC,Noto Sans TC,Numans,Nunito,Nunito Sans,Onest,Open Sans,Orienta,Oswald,Outfit,Overpass,Oxanium,Oxygen,Palanquin,Palanquin Dark,Pathway Gothic One,Play,Plus Jakarta Sans,Pontano Sans,Poppins,Pragati Narrow,Prompt,Proza Libre,PT Sans,PT Sans Caption,PT Sans Narrow,Public Sans,Puritan,Quantico,Quattrocento Sans,Questrial,Quicksand,Radio Canada,Rajdhani,Raleway,Rambla,Readex Pro,Red Hat Display,Red Hat Text,Reddit Sans,Reem Kufi,Rethink Sans,Roboto,Roboto Condensed,Roboto Flex,Ropa Sans,Rosario,Rubik,Ruda,Ruluko,Saira,Saira Condensed,Saira Extra Condensed,Saira Semi Condensed,Sarabun,Sarala,Sawarabi Gothic,Scada,Schibsted Grotesk,Sen,Shanti,Share Tech,Signika,Signika Negative,Sintony,Snippet,Sora,Source Sans 3,Space Grotesk,Spline Sans,Syncopate,Syne,Tajawal,Tauri,Teko,Telex,Tenor Sans,Titillium Web,Tomorrow,Ubuntu,Ubuntu Condensed,Ubuntu Sans,Urbanist,Varela,Varela Round,Viga,Voltaire,Wire One,Wix Madefor Display,Wix Madefor Text,Work Sans,Yanone Kaffeesatz,Yantramanav,Zen Kaku Gothic New,Zen Maru Gothic",
+r:"Abhaya Libre,Aleo,Alegreya,Alegreya SC,Alice,Alike,Amiri,Antic Didone,Antic Slab,Arapey,Arbutus Slab,Arvo,Bellefair,Bentham,Besley,Bitter,Bodoni Moda,Brawler,Bree Serif,Brygada 1918,Cambo,Cardo,Castoro,Caudex,Cinzel,Copse,Cormorant,Cormorant Garamond,Cormorant Infant,Cormorant SC,Cormorant Unicase,Cormorant Upright,Coustard,Crete Round,Crimson Pro,Crimson Text,Della Respira,DM Serif Display,DM Serif Text,Domine,EB Garamond,Esteban,Fanwood Text,Faustina,Fenix,Fraunces,Gelasio,Gentium Book Plus,Gentium Plus,Gilda Display,Glegoo,Gloock,Goudy Bookletter 1911,Gowun Batang,Habibi,Hahmlet,Halant,Hepta Slab,IBM Plex Serif,Imbue,Inknut Antiqua,Instrument Serif,Italiana,Josefin Slab,Judson,Junge,Kaisei Decol,Kameron,Karma,Kotta One,Kreon,Lancelot,Ledger,Libre Baskerville,Libre Bodoni,Libre Caslon Display,Libre Caslon Text,Linden Hill,Literata,Lora,Lusitana,Lustria,Marcellus,Marcellus SC,Martel,Mate,Mate SC,Merriweather,Montaga,Nanum Myeongjo,Neuton,Newsreader,Noticia Text,Noto Serif,Noto Serif Display,Noto Serif JP,Noto Serif KR,Noto Serif TC,Old Standard TT,Ovo,Petrona,Playfair,Playfair Display,Playfair Display SC,Podkova,Poly,Prata,Prociono,PT Serif,Quando,Quattrocento,Radley,Rasa,Roboto Serif,Roboto Slab,Rokkitt,Rozha One,Rufina,Sawarabi Mincho,Shippori Mincho,Sorts Mill Goudy,Source Serif 4,Spectral,Spectral SC,Sumana,Taviraj,Tienne,Tinos,Trirong,Trocchi,Unna,Vesper Libre,Vidaloka,Volkhov,Vollkorn,Vollkorn SC,Young Serif,Zen Old Mincho,Zilla Slab",
+d:"Abril Fatface,Agbalumo,Alfa Slab One,Allerta Stencil,Alumni Sans,Anton,Anton SC,Archivo Black,Audiowide,Bagel Fat One,Bangers,Bayon,Bebas Neue,Bevan,Big Shoulders Display,Big Shoulders Stencil Display,Black Han Sans,Black Ops One,Boogaloo,Bowlby One,Bowlby One SC,Bungee,Bungee Hairline,Bungee Inline,Bungee Outline,Bungee Shade,Bungee Spice,Bungee Tint,Calistoga,Carter One,Chango,Chewy,Climate Crisis,Coda,Comfortaa,Concert One,Creepster,Danfo,Darumadrop One,Days One,Dela Gothic One,DotGothic16,Doto,Emblema One,Erica One,Ewert,Faster One,Fascinate,Fascinate Inline,Flavors,Fontdiner Swanky,Fredericka the Great,Fredoka,Frijole,Fugaz One,Funnel Display,Galindo,Gasoek One,Germania One,Goblin One,Graduate,Gravitas One,Grenze Gotisch,Gruppo,Handjet,Henny Penny,Holtwood One SC,Honk,Irish Grover,Jacquard 12,Jersey 10,Jersey 15,Jersey 20,Jersey 25,Jolly Lodger,Kablammo,Kalnia,Kavoon,Kenia,Knewave,Kumar One,Lemon,Lilita One,Limelight,Lobster,Lobster Two,Londrina Outline,Londrina Shadow,Londrina Sketch,Londrina Solid,Luckiest Guy,Margarine,Metal Mania,Micro 5,Modak,Moirai One,Monofett,Monoton,Mystery Quest,Nabla,New Rocker,Nosifer,Oi,Oleo Script,Orbitron,Passion One,Paytone One,Pirata One,Pixelify Sans,Plaster,Poiret One,Poller One,Press Start 2P,Racing Sans One,Rammetto One,Rampart One,Reggae One,Ribeye,Righteous,RocknRoll One,Rubik 80s Fade,Rubik Beastly,Rubik Broken Fax,Rubik Bubbles,Rubik Burned,Rubik Dirt,Rubik Distressed,Rubik Doodle Shadow,Rubik Gemstones,Rubik Glitch,Rubik Iso,Rubik Lines,Rubik Maps,Rubik Marker Hatch,Rubik Maze,Rubik Microbe,Rubik Mono One,Rubik Moonrocks,Rubik Pixels,Rubik Puddles,Rubik Scribble,Rubik Spray Paint,Rubik Storm,Rubik Vinyl,Rubik Wet Paint,Russo One,Rye,Saira Stencil One,Sancreek,Sansita,Sansita Swashed,Seaweed Script,Shrikhand,Sigmar,Sigmar One,Silkscreen,Six Caps,Sixtyfour,Smokum,Snowburst One,Sonsie One,Special Elite,Spicy Rice,Squada One,Staatliches,Stalinist One,Stardos Stencil,Tilt Neon,Tilt Prism,Tilt Warp,Tiny5,Titan One,Trade Winds,Train One,Ultra,Unbounded,Unica One,UnifrakturCook,UnifrakturMaguntia,Vampiro One,Vast Shadow,Wallpoet,Warnes,Workbench,Yeseva One,Zen Dots,Zen Tokyo Zoo,Zilla Slab Highlight",
+h:"Alex Brush,Allura,Amatic SC,Architects Daughter,Arizonia,Bad Script,Ballet,Birthstone,Bonheur Royale,Calligraffitti,Caramel,Carattere,Caveat,Caveat Brush,Cedarville Cursive,Charm,Comforter,Comforter Brush,Coming Soon,Cookie,Corinthia,Courgette,Covered By Your Grace,Crafty Girls,Damion,Dancing Script,Dawning of a New Day,Dekko,Delius,Eagle Lake,Ephesis,Explora,Fleur De Leah,Fuggles,Gaegu,Gloria Hallelujah,Gochi Hand,Grape Nuts,Great Vibes,Grey Qo,Gwendolyn,Handlee,Herr Von Muellerhoff,Hi Melody,Homemade Apple,Hurricane,Imperial Script,Indie Flower,Ingrid Darling,Inspiration,Island Moments,Italianno,Just Another Hand,Kalam,Kaushan Script,Klee One,Kristi,La Belle Aurore,Lavishly Yours,Leckerli One,Licorice,Love Light,Lovers Quarrel,Luxurious Script,Mansalva,Marck Script,Mea Culpa,Meddon,Merienda,Monsieur La Doulaise,Moon Dance,Mr Dafoe,Mrs Saint Delafield,Ms Madi,Mynerve,Nanum Brush Script,Nanum Pen Script,Neucha,Niconne,Nothing You Could Do,Ole,Over the Rainbow,Pacifico,Parisienne,Passions Conflict,Patrick Hand,Permanent Marker,Petit Formal Script,Pinyon Script,Playball,Praise,Puppies Play,Qwigley,Qwitcher Grypen,Rancho,Reenie Beanie,Rock Salt,Rouge Script,Sacramento,Satisfy,Schoolbell,Sedgwick Ave,Send Flowers,Shadows Into Light,Shadows Into Light Two,Shalimar,Splash,Square Peg,Sriracha,Sue Ellen Francisco,Swanky and Moo Moo,Tangerine,The Girl Next Door,Twinkle Star,Updock,Vujahday Script,Waiting for the Sunrise,Walter Turncoat,Water Brush,Whisper,WindSong,Yellowtail,Yesteryear,Yomogi,Zeyada",
+m:"Anonymous Pro,Atkinson Hyperlegible Mono,Azeret Mono,B612 Mono,Chivo Mono,Courier Prime,Cousine,Cutive Mono,DM Mono,Fira Code,Fira Mono,Fragment Mono,Geist Mono,IBM Plex Mono,Inconsolata,JetBrains Mono,Kode Mono,Lekton,M PLUS 1 Code,Major Mono Display,Martian Mono,Nanum Gothic Coding,Noto Sans Mono,Nova Mono,Overpass Mono,Oxygen Mono,PT Mono,Red Hat Mono,Reddit Mono,Roboto Mono,Share Tech Mono,Sometype Mono,Sono,Source Code Pro,Space Mono,Spline Sans Mono,Syne Mono,Ubuntu Mono,Ubuntu Sans Mono,Victor Mono,VT323,Xanh Mono"
+};
+const FONT_CATS = {all:'All',s:'Sans',r:'Serif',d:'Display',h:'Handwriting',m:'Mono'};
+const FONT_FALLBACK = {s:'"Helvetica Neue", Arial, sans-serif', r:'Georgia, "Times New Roman", serif', d:'Impact, "Arial Black", sans-serif', h:'"Brush Script MT", cursive', m:'Menlo, Consolas, monospace'};
+const FONTS = (() => { const seen=new Set(), out=[];
+  Object.entries(FONT_DATA).forEach(([c,list])=>list.split(',').forEach(n=>{ n=n.trim(); if(n&&!seen.has(n)){ seen.add(n); out.push({n,c}); } }));
+  return out.sort((a,b)=>a.n.localeCompare(b.n)); })();
+const FONT_BY_NAME = new Map(FONTS.map(f=>[f.n.toLowerCase(),f]));
+const fontCatOf = name => (FONT_BY_NAME.get(String(name).toLowerCase())||{c:'s'}).c;
+const gfHref = (name,w) => `https://fonts.googleapis.com/css2?family=${encodeURIComponent(name).replace(/%20/g,'+')}${w&&+w!==400?':wght@'+w:''}&display=swap`;
+const fontLinks = new Map();
+function loadFontCss(name,w){
+  const href=gfHref(name,w); if(fontLinks.has(href)) return fontLinks.get(href);
+  const pr=new Promise(res=>{ const l=document.createElement('link'); l.rel='stylesheet'; l.href=href;
+    l.onload=()=>res(true); l.onerror=()=>{ l.remove(); res(false); }; document.head.appendChild(l); });
+  fontLinks.set(href,pr); return pr;
+}
+async function ensureFont(name,w=400){
+  const ok=await loadFontCss(name,w); if(!ok) return false;
+  try{ if(document.fonts) await document.fonts.load(`${w} 40px "${name}"`); }catch(e){}
+  return true;
+}
+
+/* ---------- Definitions ---------- */
+const MOTIONS = [
+  {id:'linear', label:'Linear', need:['angle'], hint:'Bands of dot sizes travel across the frame at the chosen angle. Set Speed to Still for a plain gradient.'},
+  {id:'radial', label:'Radial', need:['center'], hint:'Rings ripple outward from the center point.'},
+  {id:'pulse', label:'Pulse', need:['center'], hint:'One soft spot that breathes in and out. Move the center into a corner for an off-frame glow.'},
+  {id:'blobs', label:'Blobs', need:['center'], hint:'Soft blobs drift around the center and merge where they meet.'},
+  {id:'fluid', label:'Fluid', need:['angle'], hint:'An organic, marbled field that folds through itself.'},
+  {id:'waves', label:'Waves', need:['angle'], hint:'Undulating bands, like a line screen on water.'},
+  {id:'spiral', label:'Spiral', need:['center'], hint:'Two arms winding around the center.'},
+  {id:'drift', label:'Drift', need:[], hint:'Cloudy noise that wanders and returns to its start.'},
+];
+const MIDX = Object.fromEntries(MOTIONS.map((m,i)=>[m.id,i]));
+const SHAPES = [
+  {id:'square', label:'Square', svg:'<rect x="5" y="5" width="12" height="12"/>'},
+  {id:'circle', label:'Circle', svg:'<circle cx="11" cy="11" r="7"/>'},
+  {id:'diamond', label:'Diamond', svg:'<path d="M11 3l8 8-8 8-8-8z"/>'},
+  {id:'line', label:'Line', svg:'<rect x="2" y="8" width="18" height="6"/>'},
+  {id:'cross', label:'Cross', svg:'<path d="M9 3h4v6h6v4h-6v6H9v-6H3V9h6z"/>'},
+];
+const SIDX = Object.fromEntries(SHAPES.map((s,i)=>[s.id,i]));
+const SOURCE_TXT = {pattern:'Generated pattern', text:'Your text', image:'Your image'};
+const SOURCE_HINT = {
+  pattern:'Dots are sized by the motion pattern alone.',
+  text:'Dots fill the letters. Motion amount lets the pattern ripple through them.',
+  image:'Dots follow the image brightness. Motion amount lets the pattern ripple through it.'
+};
+
+const LOOK_KEYS=['source','text','font','fontWeight','textSize','textSoft','fit','bright','contrast','imgColor','motion','cycles','duration','scale','angle','cx','cy','motionAmt','shape','density','gridAngle','dmin','dmax','gamma','invert','crisp','bg','ink','ink2','twoTone'];
+const BASE = {source:'pattern',text:'HALF\nTONE',font:'Anton',fontWeight:400,textSize:0.42,textSoft:0.35,fit:'cover',bright:0,contrast:1.2,imgColor:false,
+  motion:'blobs',cycles:1,duration:6,scale:1,angle:0,cx:0,cy:0,motionAmt:0.5,shape:'circle',density:40,gridAngle:0,dmin:0.15,dmax:0.95,gamma:1,invert:false,crisp:false,
+  bg:'#8f80f2',ink:'#d2d2d8',ink2:'#ffffff',twoTone:false};
+const P = o => Object.assign({}, BASE, o);
+const BUILTIN = [
+  P({name:'Lilac Screen', motion:'blobs', shape:'circle', density:44, dmin:0.2, dmax:0.9, bg:'#8f80f2', ink:'#cfcfd6', duration:8, scale:1.2}),
+  P({name:'Blue Bloom', motion:'pulse', shape:'square', density:24, dmin:0.06, dmax:1, bg:'#6a98be', ink:'#0b0b0c', duration:4, scale:1.25, cy:0.04}),
+  P({name:'Salmon Steps', motion:'linear', shape:'square', density:26, dmin:0.06, dmax:1, angle:135, scale:0.9, bg:'#e3876b', ink:'#0b0b0c', duration:6}),
+  P({name:'Mustard Sweep', motion:'linear', shape:'square', density:28, dmin:0.05, dmax:0.95, angle:0, scale:0.6, bg:'#efb446', ink:'#0b0b0c', duration:5}),
+  P({name:'Pink Orb', motion:'pulse', shape:'square', density:28, dmin:0.04, dmax:0.95, cx:0.22, cy:-0.2, scale:1.5, bg:'#e48bb8', ink:'#0b0b0c', duration:5, crisp:true}),
+  P({name:'Newsprint', motion:'fluid', shape:'circle', density:64, gridAngle:45, dmin:0, dmax:1.2, bg:'#f1ede4', ink:'#1b1a19', duration:10, scale:1.1}),
+  P({name:'Riso Type', source:'text', text:'HALF\nTONE', font:'Anton', textSize:0.4, textSoft:0.45, motion:'radial', motionAmt:0.55, shape:'circle', density:70, gridAngle:15, dmin:0, dmax:1.15, bg:'#f4efe6', ink:'#ff48b0', duration:5, scale:1.3}),
+  P({name:'Night Drift', motion:'drift', shape:'square', density:38, dmin:0, dmax:0.9, bg:'#0b0b0f', ink:'#f2f2f2', duration:8, gamma:1.4}),
+  P({name:'Line Tide', motion:'waves', shape:'line', density:44, angle:90, dmin:0.05, dmax:0.9, scale:1.4, bg:'#0e2a5c', ink:'#3fa6ff', ink2:'#e9fbff', twoTone:true, duration:6}),
+  P({name:'Gold Spiral', motion:'spiral', shape:'diamond', density:34, dmin:0, dmax:1, scale:1.1, bg:'#121212', ink:'#ff5d3a', ink2:'#ffd23f', twoTone:true, duration:6}),
+];
+const PALETTES = [
+  ['#8f80f2','#cfcfd6','#ffffff'],['#6a98be','#0b0b0c','#2b2b2b'],['#e3876b','#0b0b0c','#2b2b2b'],['#efb446','#0b0b0c','#2b2b2b'],
+  ['#e48bb8','#0b0b0c','#2b2b2b'],['#f1ede4','#1b1a19','#c2185b'],['#f4efe6','#ff48b0','#2d6bff'],['#0b0b0f','#f2f2f2','#ff48b0'],
+  ['#0e2a5c','#3fa6ff','#e9fbff'],['#121212','#ff5d3a','#ffd23f'],['#e9f0e1','#1f6f3f','#b6e36b'],['#ffffff','#1a1aff','#ff2a2a'],
+];
+
+const SLIDERS = {
+  textSize:{box:'textSliders',label:'Text size',min:0.08,max:0.9,step:0.01,fmt:v=>Math.round(v*100)+'%'},
+  textSoft:{box:'textSliders',label:'Edge softness',min:0,max:1,step:0.01,fmt:v=>Math.round(v*100)+'%'},
+  bright:{box:'imageSliders',label:'Brightness',min:-0.5,max:0.5,step:0.01,fmt:v=>(v>0?'+':'')+Math.round(v*100)},
+  contrast:{box:'imageSliders',label:'Contrast',min:0.3,max:3,step:0.01,fmt:v=>(+v).toFixed(2)},
+  motionAmt:{box:'motionCtls',label:'Motion amount',min:0,max:1,step:0.01,fmt:v=>Math.round(v*100)+'%',need:'source'},
+  cycles:{box:'motionCtls',label:'Speed',min:0,max:6,step:1,fmt:v=>+v===0?'Still':v+'×'},
+  duration:{box:'motionCtls',label:'Loop length',min:1,max:12,step:0.5,fmt:v=>(+v).toFixed(1)+' s'},
+  scale:{box:'motionCtls',label:'Pattern scale',min:0.3,max:3,step:0.01,fmt:v=>(+v).toFixed(2)},
+  angle:{box:'motionCtls',label:'Direction',min:0,max:360,step:1,fmt:v=>Math.round(v)+'°',need:'angle'},
+  cx:{box:'motionCtls',label:'Center X',min:-1,max:1,step:0.01,fmt:v=>(+v).toFixed(2),need:'center'},
+  cy:{box:'motionCtls',label:'Center Y',min:-1,max:1,step:0.01,fmt:v=>(+v).toFixed(2),need:'center'},
+  density:{box:'dotCtls',label:'Grid density',min:8,max:140,step:1,fmt:v=>v+' cells'},
+  gridAngle:{box:'dotCtls',label:'Screen angle',min:0,max:90,step:1,fmt:v=>Math.round(v)+'°'},
+  dmin:{box:'dotCtls',label:'Smallest dot',min:0,max:1,step:0.01,fmt:v=>Math.round(v*100)+'%'},
+  dmax:{box:'dotCtls',label:'Largest dot',min:0.1,max:1.5,step:0.01,fmt:v=>Math.round(v*100)+'%'},
+  gamma:{box:'dotCtls',label:'Tone curve',min:0.3,max:3,step:0.01,fmt:v=>(+v).toFixed(2)},
+};
+
+const EXPORT_OPTS = {
+  gif:{sizes:[320,480,640,800,1080], size:640, fps:[10,15,20,25], f:20},
+  mp4:{sizes:[1080,1280,1920,2560,3840], size:1920, fps:[24,25,30,60], f:30},
+  png:{sizes:[1080,2048,3000,4096], size:2048, fps:null},
+};
+
+/* ---------- State ---------- */
+const store = {
+  get(k){ try{ return JSON.parse(localStorage.getItem(k)); }catch(e){ return null; } },
+  set(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+};
+const defaults = Object.assign({}, BUILTIN[0], {format:'gif', aspect:'1:1', size_gif:640, size_mp4:1920, size_png:2048, fps_gif:20, fps_mp4:30});
+delete defaults.name;
+const state = Object.assign({}, defaults, store.get('dotwash.state') || {});
+if(state.source==='image') state.source='pattern'; // uploaded images are not kept between visits
+['bg','ink','ink2'].forEach(k=>{ if(!validHex(state[k]||'')) state[k]=defaults[k]; });
+let userPresets = (store.get('dotwash.presets') || []).filter(p=>p && p.motion);
+const persist = () => store.set('dotwash.state', state);
+
+/* ---------- Image source ---------- */
+function makeSample(){
+  const c=document.createElement('canvas'); c.width=c.height=800; const g=c.getContext('2d');
+  const bgG=g.createLinearGradient(0,0,0,800); bgG.addColorStop(0,'#1a1a1a'); bgG.addColorStop(1,'#050505');
+  g.fillStyle=bgG; g.fillRect(0,0,800,800);
+  const s=g.createRadialGradient(330,300,20,400,420,300); s.addColorStop(0,'#ffffff'); s.addColorStop(.35,'#bdbdbd'); s.addColorStop(.8,'#3a3a3a'); s.addColorStop(1,'#111');
+  g.fillStyle=s; g.beginPath(); g.arc(400,420,270,0,Math.PI*2); g.fill();
+  g.strokeStyle='rgba(255,255,255,.85)'; g.lineWidth=26; g.beginPath(); g.ellipse(400,430,370,90,-0.25,Math.PI*0.95,Math.PI*2.05); g.stroke();
+  return c;
+}
+let image = {id:'sample', el:makeSample(), name:'Sample image · upload your own'};
+function paintImgThumb(){
+  const c=$('imgThumb'), g=c.getContext('2d'); const el=image.el; const w=el.naturalWidth||el.width, h=el.naturalHeight||el.height;
+  const k=Math.max(96/w,96/h); g.fillStyle='#000'; g.fillRect(0,0,96,96); g.drawImage(el,(96-w*k)/2,(96-h*k)/2,w*k,h*k);
+  $('imgName').textContent=image.name;
+}
+function loadFile(file){
+  if(!file || !file.type.startsWith('image/')){ setStatus('That file isn\'t an image. Use a PNG, JPG, WebP or GIF.','err'); return; }
+  const url=URL.createObjectURL(file); const img=new Image();
+  img.onload=()=>{ image={id:'u'+Date.now(), el:img, name:file.name}; srcCache.clear(); state.source='image'; paintImgThumb(); syncAll(); setStatus('');};
+  img.onerror=()=>setStatus('That image couldn\'t be opened. Try a PNG or JPG.','err');
+  img.src=url;
+}
+
+/* ---------- Source rasterizer (text / image) ---------- */
+let fontsVersion=0;
+const srcCache=new Map();
+function sourceFor(L,w,h){
+  if(L.source==='pattern') return null;
+  const r=w/h; const W = r>=1?1024:Math.round(1024*r), H = r>=1?Math.round(1024/r):1024;
+  const key = L.source==='text' ? ['t',L.text,L.font,L.fontWeight,L.textSize,L.textSoft,W,H,fontsVersion].join('|') : ['i',image.id,L.fit,W,H].join('|');
+  let c=srcCache.get(key); if(c) return {c,key};
+  c=document.createElement('canvas'); c.width=W; c.height=H; const g=c.getContext('2d');
+  g.fillStyle='#000'; g.fillRect(0,0,W,H);
+  if(L.source==='text'){
+    const lines=String(L.text||'').split('\n').filter((s,i,a)=>s.length||a.length===1);
+    const weight = String(L.fontWeight||400);
+    const fam = `"${L.font}", ${FONT_FALLBACK[fontCatOf(L.font)]}`;
+    let px=L.textSize*H;
+    g.font=`${weight} ${px}px ${fam}`;
+    const maxW=Math.max(1,...lines.map(s=>g.measureText(s).width));
+    if(maxW>W*0.9) px*=W*0.9/maxW;
+    const lhK=({r:1.08,h:1.15,m:1.05})[fontCatOf(L.font)]||0.98;
+    const lh=px*lhK;
+    if(lines.length*lh>H*0.94) px*=H*0.94/(lines.length*lh);
+    const lh2=px*lhK;
+    g.font=`${weight} ${px}px ${fam}`; g.textAlign='center'; g.textBaseline='middle'; g.fillStyle='#fff';
+    const blur=L.textSoft*px*0.1; if(blur>0.2) g.filter=`blur(${blur.toFixed(1)}px)`;
+    const y0=H/2-(lines.length-1)*lh2/2 + px*0.04;
+    lines.forEach((s,i)=>g.fillText(s,W/2,y0+i*lh2));
+    g.filter='none';
+  } else {
+    const el=image.el; const iw=el.naturalWidth||el.width, ih=el.naturalHeight||el.height;
+    const k = L.fit==='contain' ? Math.min(W/iw,H/ih) : Math.max(W/iw,H/ih);
+    g.drawImage(el,(W-iw*k)/2,(H-ih*k)/2,iw*k,ih*k);
+  }
+  if(srcCache.size>30) srcCache.delete(srcCache.keys().next().value);
+  srcCache.set(key,c); return {c,key};
+}
+
+/* ---------- WebGL renderer ---------- */
+const VS = `#version 300 es
+void main(){ vec2 p=vec2(float((gl_VertexID<<1)&2), float(gl_VertexID&2)); gl_Position=vec4(p*2.-1.,0.,1.); }`;
+const FS = `#version 300 es
+precision highp float;
+uniform vec2 uRes; uniform float uPhase; uniform int uMotion; uniform float uCycles,uScale,uAngle; uniform vec2 uCenter;
+uniform int uSrc; uniform sampler2D uTex; uniform vec2 uTexSize; uniform float uAmt,uBright,uContrast; uniform int uImgColor;
+uniform float uDensity,uGridAngle,uMin,uMax,uGamma,uInvert,uCrisp,uTwoTone; uniform int uShape;
+uniform vec3 uBg,uInk,uInk2;
+out vec4 o;
+#define TAU 6.28318530718
+float tri(float x){ return 1.-abs(2.*fract(x)-1.); }
+vec2 rot(vec2 p,float a){ float c=cos(a),s=sin(a); return vec2(c*p.x-s*p.y,s*p.x+c*p.y); }
+float h21(vec2 p){ p=fract(p*vec2(123.34,456.21)); p+=dot(p,p+45.32); return fract(p.x*p.y); }
+float vnoise(vec2 p){ vec2 i=floor(p),f=fract(p); f=f*f*(3.-2.*f);
+  return mix(mix(h21(i),h21(i+vec2(1,0)),f.x),mix(h21(i+vec2(0,1)),h21(i+vec2(1,1)),f.x),f.y); }
+float field(vec2 p){
+  float ph=TAU*uPhase*uCycles; float sh=uPhase*uCycles;
+  if(uMotion==0){ vec2 d=vec2(cos(uAngle),sin(uAngle)); return smoothstep(0.,1.,tri(dot(p,d)*uScale*0.8+0.5-sh)); }
+  if(uMotion==1){ return smoothstep(0.,1.,tri(length(p-uCenter)*uScale*1.2-sh)); }
+  if(uMotion==2){ float r=0.55*uScale*(1.+0.28*sin(ph)); return clamp(1.-length(p-uCenter)/r,0.,1.); }
+  if(uMotion==3){ float s=0.;
+    for(int i=0;i<5;i++){ float fi=float(i); float k=mod(fi,2.)+1.;
+      vec2 c=uCenter+0.3*vec2(cos(ph*k+fi*2.4)+0.3*sin(ph+fi*4.1),0.8*sin(ph*k+fi*1.7)+0.25*cos(2.*ph+fi));
+      float r=0.2*uScale*(0.75+0.5*fract(fi*0.618)); vec2 d=p-c; s+=exp(-dot(d,d)/(r*r)); }
+    return clamp(s*0.9,0.,1.); }
+  if(uMotion==4){ vec2 q=rot(p,uAngle)*2.2/uScale;
+    for(int k=0;k<4;k++){ float fk=float(k); q+=0.45*vec2(sin(q.y*1.3+ph*(k<2?1.:-1.)+fk*1.7),cos(q.x*1.1-ph+fk*2.3)); }
+    return 0.5+0.5*sin(q.x*0.9+q.y*0.7); }
+  if(uMotion==5){ vec2 q=rot(p,-uAngle); float y=q.y+0.12*sin(q.x*4.+ph)+0.06*sin(q.x*7.3-2.*ph+1.1);
+    return smoothstep(0.,1.,tri(y*uScale*1.4+0.5)); }
+  if(uMotion==6){ vec2 q=p-uCenter; float a=atan(q.y,q.x)/TAU; return smoothstep(0.,1.,tri(a*2.+length(q)*uScale*1.6-sh)); }
+  vec2 q=p*uScale*3.+0.9*vec2(cos(ph),sin(ph));
+  float n=0.55*vnoise(q)+0.3*vnoise(q*2.1+vec2(5.2,1.3)-0.6*vec2(sin(ph),cos(ph)))+0.15*vnoise(q*4.3);
+  return smoothstep(0.22,0.78,n);
+}
+void main(){
+  vec2 fc=gl_FragCoord.xy; float m=min(uRes.x,uRes.y); float cell=m/uDensity;
+  vec2 q=rot(fc-0.5*uRes,-uGridAngle);
+  vec2 id=floor(q/cell); vec2 l=q/cell-id-0.5;
+  vec2 cc=rot((id+0.5)*cell,uGridAngle)+0.5*uRes;
+  vec2 p=(cc-0.5*uRes)/m;
+  float f=field(p); float v=f; vec3 tc=uInk;
+  if(uSrc==1){
+    vec2 uv=cc/uRes;
+    float lod=max(0.,log2(cell*uTexSize.x/uRes.x)-0.5);
+    vec4 t=textureLod(uTex,uv,lod);
+    float inside=step(0.,uv.x)*step(uv.x,1.)*step(0.,uv.y)*step(uv.y,1.);
+    float lum=dot(t.rgb,vec3(.2126,.7152,.0722))*inside;
+    lum=clamp((lum-0.5)*uContrast+0.5+uBright,0.,1.);
+    v=lum*mix(1.,f,uAmt); tc=t.rgb;
+  }
+  v=pow(clamp(v,0.,1.),uGamma);
+  if(uInvert>0.5) v=1.-v;
+  float s=mix(uMin,uMax,v);
+  float d;
+  if(uShape==0) d=max(abs(l.x),abs(l.y))-s*0.5;
+  else if(uShape==1) d=length(l)-s*0.564;
+  else if(uShape==2) d=abs(l.x)+abs(l.y)-s*0.72;
+  else if(uShape==3) d=abs(l.y)-s*0.5;
+  else d=min(max(abs(l.x)-s*0.5,abs(l.y)-s*0.17),max(abs(l.y)-s*0.5,abs(l.x)-s*0.17));
+  if(s<0.02) d=1.;
+  float aa=uCrisp>0.5?0.0001:0.85/cell;
+  float a=1.-smoothstep(-aa,aa,d);
+  vec3 ink=uTwoTone>0.5?mix(uInk,uInk2,v):uInk;
+  if(uImgColor==1&&uSrc==1) ink=tc;
+  o=vec4(mix(uBg,ink,a),1.);
+}`;
+
+class Renderer {
+  constructor(canvas, preserve){
+    this.c=canvas;
+    const gl=canvas.getContext('webgl2',{antialias:false,alpha:false,preserveDrawingBuffer:!!preserve,premultipliedAlpha:false});
+    if(!gl) throw new Error('WebGL2 is not available in this browser.');
+    this.gl=gl;
+    const sh=(t,src)=>{ const s=gl.createShader(t); gl.shaderSource(s,src); gl.compileShader(s); if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; };
+    const p=gl.createProgram(); gl.attachShader(p,sh(gl.VERTEX_SHADER,VS)); gl.attachShader(p,sh(gl.FRAGMENT_SHADER,FS)); gl.linkProgram(p);
+    if(!gl.getProgramParameter(p,gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+    gl.useProgram(p);
+    gl.bindVertexArray(gl.createVertexArray());
+    this.u={}; ['uRes','uPhase','uMotion','uCycles','uScale','uAngle','uCenter','uSrc','uTex','uTexSize','uAmt','uBright','uContrast','uImgColor','uDensity','uGridAngle','uMin','uMax','uGamma','uInvert','uCrisp','uTwoTone','uShape','uBg','uInk','uInk2'].forEach(n=>this.u[n]=gl.getUniformLocation(p,n));
+    this.tex=gl.createTexture(); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,this.tex);
+    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array([0,0,0,255]));
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+    gl.generateMipmap(gl.TEXTURE_2D);
+    gl.uniform1i(this.u.uTex,0);
+    this.srcKey=null; this.texW=1; this.texH=1;
+  }
+  render(L, phase, w, h){
+    const gl=this.gl;
+    if(this.c.width!==w||this.c.height!==h){ this.c.width=w; this.c.height=h; }
+    gl.viewport(0,0,w,h);
+    const src=sourceFor(L,w,h);
+    if(src && src.key!==this.srcKey){
+      gl.bindTexture(gl.TEXTURE_2D,this.tex); gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,true);
+      gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,src.c); gl.generateMipmap(gl.TEXTURE_2D);
+      this.srcKey=src.key; this.texW=src.c.width; this.texH=src.c.height;
+    }
+    const U=this.u;
+    gl.uniform2f(U.uRes,w,h); gl.uniform1f(U.uPhase,phase);
+    gl.uniform1i(U.uMotion,MIDX[L.motion]??0); gl.uniform1f(U.uCycles,L.cycles); gl.uniform1f(U.uScale,L.scale);
+    gl.uniform1f(U.uAngle,L.angle*Math.PI/180); gl.uniform2f(U.uCenter,L.cx,L.cy);
+    gl.uniform1i(U.uSrc,src?1:0); gl.uniform2f(U.uTexSize,this.texW,this.texH);
+    gl.uniform1f(U.uAmt,L.motionAmt); gl.uniform1f(U.uBright,L.source==='image'?L.bright:0); gl.uniform1f(U.uContrast,L.source==='image'?L.contrast:1);
+    gl.uniform1i(U.uImgColor,(L.source==='image'&&L.imgColor)?1:0);
+    gl.uniform1f(U.uDensity,L.density); gl.uniform1f(U.uGridAngle,L.gridAngle*Math.PI/180);
+    gl.uniform1f(U.uMin,L.dmin); gl.uniform1f(U.uMax,Math.max(L.dmin,L.dmax)); gl.uniform1f(U.uGamma,L.gamma);
+    gl.uniform1f(U.uInvert,L.invert?1:0); gl.uniform1f(U.uCrisp,L.crisp?1:0); gl.uniform1f(U.uTwoTone,L.twoTone?1:0);
+    gl.uniform1i(U.uShape,SIDX[L.shape]??0);
+    gl.uniform3fv(U.uBg,hex01(L.bg)); gl.uniform3fv(U.uInk,hex01(L.ink)); gl.uniform3fv(U.uInk2,hex01(L.ink2));
+    gl.drawArrays(gl.TRIANGLES,0,3);
+  }
+}
+
+const view=$('view');
+let viewR, offR, thumbR;
+try { viewR=new Renderer(view,false); offR=new Renderer(document.createElement('canvas'),true); thumbR=new Renderer(document.createElement('canvas'),true); }
+catch(e){ $('stage').innerHTML='<p class="hint" style="padding:40px;text-align:center">This browser can\'t run WebGL2, which Dotwash needs to draw halftones. Try a current Chrome, Edge, Safari or Firefox.</p>'; console.error(e); return; }
+
+/* ---------- Dimensions ---------- */
+function ratio(){ const [a,b]=state.aspect.split(':').map(Number); return a/b; }
+function exportDims(){
+  const L=state['size_'+state.format]; const r=ratio(); const even=v=>Math.max(2,Math.round(v/2)*2);
+  return r>=1?{w:even(L),h:even(L/r)}:{w:even(L*r),h:even(L)};
+}
+const curFps=()=>state['fps_'+state.format]||20;
+let viewW=600, viewH=600;
+function fitView(){
+  const st=$('stage'); const cs=getComputedStyle(st);
+  const aw=st.clientWidth-parseFloat(cs.paddingLeft)-parseFloat(cs.paddingRight);
+  const ah=Math.min(window.innerHeight*0.64,760);
+  const r=ratio(); let w=aw, h=w/r; if(h>ah){ h=ah; w=h*r; }
+  view.style.width=Math.round(w)+'px'; view.style.height=Math.round(h)+'px';
+  const k=Math.min(Math.min(window.devicePixelRatio||1,2),1600/Math.max(w,h));
+  viewW=Math.max(2,Math.round(w*k)); viewH=Math.max(2,Math.round(h*k));
+}
+new ResizeObserver(fitView).observe($('stage'));
+window.addEventListener('resize',fitView);
+
+/* ---------- Playback ---------- */
+let playing=!window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+let phase=0.1, last=performance.now(), scrubbing=false;
+function setPlaying(p){
+  playing=p; $('playBtn').setAttribute('aria-label',p?'Pause':'Play');
+  $('playIcon').innerHTML=p?'<rect x="2" y="1" width="3.5" height="12" rx="1"/><rect x="8.5" y="1" width="3.5" height="12" rx="1"/>':'<path d="M3 1.5v11a.6.6 0 0 0 .9.5l9-5.5a.6.6 0 0 0 0-1L3.9 1a.6.6 0 0 0-.9.5z"/>';
+}
+setPlaying(playing);
+const tcFmt=sec=>{ const f=curFps(); const tot=Math.round(sec*f); const ff=tot%f, s=Math.floor(tot/f)%60, m=Math.floor(tot/f/60); return [m,s,ff].map(v=>String(v).padStart(2,'0')).join(':'); };
+function frame(now){
+  const dt=(now-last)/1000; last=now;
+  if(playing) phase=(phase+dt/state.duration)%1;
+  viewR.render(state,phase,viewW,viewH);
+  if(!scrubbing) $('scrub').value=Math.round(phase*1000);
+  $('tc').innerHTML=`<b>${tcFmt(phase*state.duration)}</b> / ${tcFmt(state.duration)}`;
+  requestAnimationFrame(frame);
+}
+$('scrub').addEventListener('input',e=>{ scrubbing=true; setPlaying(false); phase=e.target.value/1000; });
+$('scrub').addEventListener('change',()=>{ scrubbing=false; });
+$('playBtn').addEventListener('click',()=>setPlaying(!playing));
+document.addEventListener('keydown',e=>{
+  if(e.code==='Space' && !['INPUT','SELECT','TEXTAREA','BUTTON'].includes(document.activeElement.tagName)){ e.preventDefault(); setPlaying(!playing); }
+});
+
+/* ---------- Thumbnails ---------- */
+function drawThumb(canvas,look,w,h,ph=0.15){
+  canvas.width=w; canvas.height=h;
+  thumbR.render(look,ph,w,h);
+  canvas.getContext('2d').drawImage(thumbR.c,0,0);
+}
+function renderPresets(){
+  const box=$('presets'); box.innerHTML='';
+  [...BUILTIN.map(p=>({...p,builtin:true})),...userPresets].forEach(p=>{
+    const b=document.createElement('button'); b.className='preset'; b.type='button';
+    const cv=document.createElement('canvas');
+    const row=document.createElement('div'); row.className='row';
+    const nm=document.createElement('span'); nm.textContent=p.name;
+    const tag=document.createElement('small'); tag.textContent=p.source==='text'?'Text':p.source==='image'?'Image':MOTIONS[MIDX[p.motion]].label;
+    row.append(nm,tag); b.append(cv,row);
+    b.addEventListener('click',()=>applyLook(p));
+    if(!p.builtin){
+      const del=document.createElement('span'); del.className='del'; del.textContent='×'; del.setAttribute('role','button'); del.tabIndex=0; del.setAttribute('aria-label','Delete preset '+p.name);
+      const rm=ev=>{ ev.stopPropagation(); userPresets=userPresets.filter(x=>x!==p); store.set('dotwash.presets',userPresets); renderPresets(); };
+      del.addEventListener('click',rm); del.addEventListener('keydown',ev=>{ if(ev.key==='Enter'||ev.key===' ') rm(ev); });
+      b.append(del);
+    }
+    box.append(b);
+    drawThumb(cv,{...p,density:Math.min(p.density,48)},200,200,0.15);
+  });
+}
+function renderStyleThumbs(){
+  document.querySelectorAll('.style-btn').forEach(b=>{
+    const look={...state,source:'pattern',motion:b.dataset.motion,density:16,gridAngle:0,cycles:Math.max(1,state.cycles),angle:b.dataset.motion==='waves'?90:state.angle};
+    if(['radial','pulse','blobs','spiral'].includes(look.motion)){ look.cx=0; look.cy=0; }
+    drawThumb(b.querySelector('canvas'),look,120,120,0.2);
+  });
+}
+let thumbTimer=0;
+const scheduleThumbs=()=>{ clearTimeout(thumbTimer); thumbTimer=setTimeout(renderStyleThumbs,120); };
+
+/* ---------- Controls ---------- */
+function buildButtons(){
+  MOTIONS.forEach(m=>{
+    const b=document.createElement('button'); b.type='button'; b.className='style-btn'; b.dataset.motion=m.id;
+    b.innerHTML=`<canvas></canvas><span>${m.label}</span>`;
+    b.addEventListener('click',()=>{ state.motion=m.id; syncAll(); });
+    $('styles').append(b);
+  });
+  SHAPES.forEach(s=>{
+    const b=document.createElement('button'); b.type='button'; b.className='shape-btn'; b.dataset.shape=s.id;
+    b.innerHTML=`<svg viewBox="0 0 22 22" aria-hidden="true">${s.svg}</svg><span>${s.label}</span>`;
+    b.addEventListener('click',()=>{ state.shape=s.id; syncAll(); });
+    $('shapes').append(b);
+  });
+  PALETTES.forEach(([bg,ink,ink2])=>{
+    const b=document.createElement('button'); b.type='button'; b.className='pal'; b.style.background=bg; b.style.setProperty('--ink',ink);
+    b.setAttribute('aria-label',`Palette ${bg} with ${ink} dots`); b.title=`${bg} / ${ink}`;
+    b.addEventListener('click',()=>{ Object.assign(state,{bg,ink,ink2}); syncAll(); });
+    $('palettes').append(b);
+  });
+}
+function buildSliders(){
+  Object.entries(SLIDERS).forEach(([k,d])=>{
+    const wrap=document.createElement('div'); wrap.className='ctl'; wrap.id='ctl-'+k;
+    wrap.innerHTML=`<div class="ctl-top"><label for="s-${k}">${d.label}</label><output id="o-${k}"></output></div><input type="range" id="s-${k}" min="${d.min}" max="${d.max}" step="${d.step}">`;
+    const inp=wrap.querySelector('input');
+    inp.addEventListener('input',()=>{ state[k]=parseFloat(inp.value); syncSlider(k); persist(); updateSummary(); if(['scale','angle','dmin','dmax','gamma'].includes(k)) scheduleThumbs(); });
+    $(d.box).append(wrap);
+  });
+  const pair=document.createElement('div'); pair.className='two'; pair.id='centerPair';
+  $('ctl-cx').before(pair); pair.append($('ctl-cx'),$('ctl-cy'));
+  const pair2=document.createElement('div'); pair2.className='two';
+  $('ctl-dmin').before(pair2); pair2.append($('ctl-dmin'),$('ctl-dmax'));
+}
+function syncSlider(k){
+  const inp=$('s-'+k), d=SLIDERS[k]; inp.value=state[k];
+  inp.style.setProperty('--p',((state[k]-d.min)/(d.max-d.min)*100)+'%');
+  $('o-'+k).textContent=d.fmt(state[k]);
+}
+const COLOR_ROWS=[['bg','Background'],['ink','Ink'],['ink2','Ink 2 (large dots)']];
+function buildColors(){
+  const box=$('colors'); box.innerHTML='';
+  COLOR_ROWS.forEach(([k,label])=>{
+    const hx=state[k]; const row=document.createElement('div'); row.className='color-row'+(k==='ink2'&&!state.twoTone?' off':'');
+    row.innerHTML=`<div class="swatch" style="background:${hx}"><input type="color" id="cp-${k}" value="${hx}" aria-label="${label} color"></div>
+      <input class="hex" id="hx-${k}" value="${hx}" spellcheck="false" aria-label="${label} hex code"><span class="role">${label}</span>`;
+    const cp=row.querySelector('input[type=color]'), hxI=row.querySelector('.hex'), sw=row.querySelector('.swatch');
+    const set=v=>{ state[k]=v; sw.style.background=v; if(k==='ink2'&&!state.twoTone){ state.twoTone=true; syncAll(); return; } persist(); scheduleThumbs(); };
+    cp.addEventListener('input',()=>{ hxI.value=cp.value; set(cp.value); });
+    hxI.addEventListener('input',()=>{ if(validHex(hxI.value)){ const v=normHex(hxI.value); cp.value=v; set(v); } });
+    hxI.addEventListener('blur',()=>{ hxI.value=state[k]; });
+    box.append(row);
+  });
+}
+$('twoToneBtn').addEventListener('click',()=>{ state.twoTone=!state.twoTone; syncAll(); });
+$('swapBtn').addEventListener('click',()=>{ [state.bg,state.ink]=[state.ink,state.bg]; syncAll(); });
+
+function segBind(id,key,parse){ $(id).querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{ state[key]=parse(b.dataset.v); syncAll(); })); }
+function segSync(id,val){ $(id).querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v===String(val)))); }
+segBind('srcSeg','source',v=>v);
+segBind('fitSeg','fit',v=>v);
+segBind('imgColorSeg','imgColor',v=>v==='1');
+segBind('invertSeg','invert',v=>v==='1');
+segBind('crispSeg','crisp',v=>v==='1');
+segBind('formatSeg','format',v=>v);
+$('textIn').addEventListener('input',e=>{ state.text=e.target.value; persist(); });
+/* ---------- Font picker ---------- */
+let fontCatFilter='all', fontQuery='';
+const fontIO = 'IntersectionObserver' in window ? new IntersectionObserver(entries=>entries.forEach(e=>{
+  if(!e.isIntersecting) return; const b=e.target; fontIO.unobserve(b);
+  loadFontCss(b.dataset.font,400).then(ok=>{ if(!ok) b.classList.add('missing'); });
+}),{root:$('fontList'),rootMargin:'160px 0px'}) : null;
+function setFontNote(t){ $('fontNote').textContent=t||''; }
+function renderFontCurrent(){
+  const c=fontCatOf(state.font);
+  $('fpCurName').textContent=state.font; $('fpCurName').style.fontFamily=`"${state.font}", ${FONT_FALLBACK[c]}`;
+  $('fpCurName').style.fontWeight=state.fontWeight; $('fpCurMeta').textContent=`${FONT_CATS[c]} · ${state.fontWeight}`;
+  $('weightSel').value=String(state.fontWeight);
+}
+function fontRow(name,c){
+  const b=document.createElement('button'); b.type='button'; b.className='fp-row'; b.dataset.font=name; b.setAttribute('role','option');
+  b.setAttribute('aria-selected',String(name===state.font));
+  const sp=document.createElement('span'); sp.textContent=name; sp.style.fontFamily=`"${name}", ${FONT_FALLBACK[c]}`;
+  const sm=document.createElement('small'); sm.textContent=FONT_CATS[c];
+  b.append(sp,sm); b.addEventListener('click',()=>selectFont(name));
+  if(fontIO) fontIO.observe(b); else loadFontCss(name,400);
+  return b;
+}
+function renderFontList(){
+  const list=$('fontList'); list.innerHTML=''; list.scrollTop=0;
+  const q=fontQuery.trim(), ql=q.toLowerCase();
+  const items=FONTS.filter(f=>(fontCatFilter==='all'||f.c===fontCatFilter)&&(!ql||f.n.toLowerCase().includes(ql)));
+  if(q && !FONT_BY_NAME.has(ql)){
+    const b=document.createElement('button'); b.type='button'; b.className='fp-row load';
+    const sp=document.createElement('span'); sp.textContent=`Load “${q}” from Google Fonts`;
+    b.append(sp); b.addEventListener('click',()=>selectFont(q,true)); list.append(b);
+  }
+  items.forEach(f=>list.append(fontRow(f.n,f.c)));
+  $('fontFoot').textContent = q ? `${items.length} matching of ${FONTS.length} families` : `${items.length} families · any other Google Fonts family loads by name`;
+}
+function markFontRows(){ $('fontList').querySelectorAll('.fp-row[data-font]').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.font===state.font))); }
+const titleCase = s => s.replace(/\b([a-z])/g,(m,a)=>a.toUpperCase());
+async function selectFont(name,custom){
+  const prev=state.font, prevW=state.fontWeight;
+  setFontNote('Loading '+name+'…');
+  let ok=await ensureFont(name,state.fontWeight);
+  if(!ok && custom && titleCase(name)!==name){ name=titleCase(name); ok=await ensureFont(name,state.fontWeight); }
+  if(!ok && +state.fontWeight!==400){
+    const w=state.fontWeight; ok=await ensureFont(name,400);
+    if(ok){ state.font=name; state.fontWeight=400; setFontNote(`${name} has no ${w} weight, so it is set to 400 Regular.`); }
+  } else if(ok){ state.font=name; setFontNote(''); }
+  if(!ok){ state.font=prev; state.fontWeight=prevW; setFontNote(`Google Fonts has no family called “${name}”. Check the spelling, including capitals.`); return; }
+  if(custom && !FONT_BY_NAME.has(name.toLowerCase())){ const f={n:name,c:'s'}; FONTS.push(f); FONTS.sort((a,b)=>a.n.localeCompare(b.n)); FONT_BY_NAME.set(name.toLowerCase(),f); fontQuery=name; $('fontSearch').value=name; renderFontList(); }
+  fontsVersion++; persist(); renderFontCurrent(); markFontRows();
+  if(state.source!=='text'){ state.source='text'; syncAll(); }
+}
+$('weightSel').addEventListener('change',async e=>{
+  const w=+e.target.value, prev=state.fontWeight;
+  setFontNote('Loading '+state.font+' '+w+'…');
+  const ok=await ensureFont(state.font,w);
+  if(ok){ state.fontWeight=w; setFontNote(''); fontsVersion++; persist(); }
+  else { setFontNote(`${state.font} doesn't come in ${w}. Pick another weight or family.`); }
+  if(!ok) state.fontWeight=prev;
+  renderFontCurrent();
+});
+Object.entries(FONT_CATS).forEach(([k,label])=>{
+  const b=document.createElement('button'); b.type='button'; b.textContent=label; b.dataset.v=k;
+  b.addEventListener('click',()=>{ fontCatFilter=k; $('fontCats').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',String(x.dataset.v===k))); renderFontList(); });
+  $('fontCats').append(b);
+});
+$('fontCats').querySelector('button').setAttribute('aria-pressed','true');
+let fontSearchT=0;
+$('fontSearch').addEventListener('input',e=>{ clearTimeout(fontSearchT); fontSearchT=setTimeout(()=>{ fontQuery=e.target.value; renderFontList(); },120); });
+$('fontSearch').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); const q=e.target.value.trim(); if(!q) return; const hit=FONTS.find(f=>f.n.toLowerCase()===q.toLowerCase()); selectFont(hit?hit.n:q,!hit); } });
+$('dropBtn').addEventListener('click',()=>$('fileIn').click());
+$('fileIn').addEventListener('change',e=>{ loadFile(e.target.files[0]); e.target.value=''; });
+const stage=$('stage');
+stage.addEventListener('dragover',e=>{ e.preventDefault(); stage.classList.add('drag'); });
+stage.addEventListener('dragleave',()=>stage.classList.remove('drag'));
+stage.addEventListener('drop',e=>{ e.preventDefault(); stage.classList.remove('drag'); loadFile(e.dataTransfer.files[0]); });
+document.addEventListener('paste',e=>{ const f=[...(e.clipboardData?.files||[])].find(f=>f.type.startsWith('image/')); if(f) loadFile(f); });
+
+$('aspect').addEventListener('change',e=>{ state.aspect=e.target.value; syncAll(); });
+$('size').addEventListener('change',e=>{ state['size_'+state.format]=+e.target.value; persist(); updateSummary(); });
+$('fps').addEventListener('change',e=>{ state['fps_'+state.format]=+e.target.value; persist(); updateSummary(); });
+function fillSelect(sel,vals,cur,fmt){ sel.innerHTML=vals.map(v=>`<option value="${v}" ${v===cur?'selected':''}>${fmt(v)}</option>`).join(''); }
+
+function syncAll(){
+  const m=MOTIONS[MIDX[state.motion]]||MOTIONS[0];
+  document.querySelectorAll('.style-btn').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.motion===state.motion)));
+  document.querySelectorAll('.shape-btn').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.shape===state.shape)));
+  const shapeLabel=SHAPES[SIDX[state.shape]].label;
+  $('motionName').textContent=m.label; $('motionHint').textContent=m.hint; $('shapeName').textContent=shapeLabel;
+  $('metaStyle').textContent=`${m.label} · ${shapeLabel}`;
+  Object.keys(SLIDERS).forEach(k=>{
+    syncSlider(k); const need=SLIDERS[k].need;
+    if(need==='source') $('ctl-'+k).hidden=state.source==='pattern';
+    else if(need) $('ctl-'+k).hidden=!m.need.includes(need);
+  });
+  $('centerPair').hidden=!m.need.includes('center');
+  segSync('srcSeg',state.source); segSync('fitSeg',state.fit); segSync('imgColorSeg',state.imgColor?'1':'0');
+  segSync('invertSeg',state.invert?'1':'0'); segSync('crispSeg',state.crisp?'1':'0'); segSync('formatSeg',state.format);
+  $('textCtls').hidden=state.source!=='text'; $('imageCtls').hidden=state.source!=='image';
+  $('srcAside').textContent=SOURCE_TXT[state.source]; $('srcHint').textContent=SOURCE_HINT[state.source];
+  if($('textIn').value!==state.text) $('textIn').value=state.text;
+  renderFontCurrent(); markFontRows();
+  $('twoToneBtn').setAttribute('aria-pressed',String(!!state.twoTone));
+  const eo=EXPORT_OPTS[state.format];
+  $('aspect').value=state.aspect;
+  fillSelect($('size'),eo.sizes,state['size_'+state.format],v=>v+' px');
+  $('fpsField').hidden=!eo.fps;
+  if(eo.fps) fillSelect($('fps'),eo.fps,state['fps_'+state.format],v=>v+' fps');
+  $('exportBtn').textContent={gif:'Export GIF',mp4:'Export MP4',png:'Export PNG'}[state.format];
+  buildColors(); fitView(); updateSummary(); scheduleThumbs(); persist();
+}
+function applyLook(p){ LOOK_KEYS.forEach(k=>{ if(p[k]!==undefined) state[k]=p[k]; }); if(state.fontWeight==null) state.fontWeight=400; if(state.source==='text') ensureFont(state.font,state.fontWeight).then(()=>fontsVersion++); syncAll(); }
+
+function updateSummary(){
+  const d=exportDims(); $('metaDims').textContent=`${d.w} × ${d.h}`;
+  if(state.format==='png'){ $('summary').textContent=`${d.w} × ${d.h} · still frame at the current loop position`; return; }
+  const f=curFps(); const frames=Math.round(state.duration*f);
+  let line=`${d.w} × ${d.h} · ${frames} frames · ${(frames/f).toFixed(1)} s`;
+  line+= state.format==='gif' ? ' · loops forever' : ` · ≈ ${Math.max(0.1,bitrateFor(d.w,d.h,f)*frames/f/8/1e6).toFixed(1)} MB`;
+  if(+state.cycles===0) line+=' · Speed is Still, so every frame matches';
+  $('summary').textContent=line;
+}
+const bitrateFor=(w,h,f)=>Math.round(Math.min(60e6,Math.max(4e6,w*h*f*0.3)));
+
+/* ---------- Save presets ---------- */
+$('savePresetToggle').addEventListener('click',()=>{ const r=$('saveNameRow'); r.hidden=!r.hidden; if(!r.hidden){ $('presetName').value=''; $('presetName').focus(); } });
+function savePreset(){
+  const name=$('presetName').value.trim()||`My halftone ${userPresets.length+1}`;
+  const p={name}; LOOK_KEYS.forEach(k=>p[k]=state[k]);
+  userPresets.push(p); store.set('dotwash.presets',userPresets); $('saveNameRow').hidden=true; renderPresets();
+}
+$('savePresetBtn').addEventListener('click',savePreset);
+$('presetName').addEventListener('keydown',e=>{ if(e.key==='Enter') savePreset(); });
+
+/* ---------- GIF encoder ---------- */
+function medianCut(px,K){
+  const n=px.length/3; let boxes=[{ids:Uint32Array.from({length:n},(_,i)=>i)}];
+  const stats=b=>{ let mn=[255,255,255],mx=[0,0,0]; for(const i of b.ids){ for(let c=0;c<3;c++){ const v=px[i*3+c]; if(v<mn[c])mn[c]=v; if(v>mx[c])mx[c]=v; } } const rg=[mx[0]-mn[0],mx[1]-mn[1],mx[2]-mn[2]]; b.ch=rg.indexOf(Math.max(...rg)); b.range=rg[b.ch]; b.score=b.range*Math.sqrt(b.ids.length); return b; };
+  stats(boxes[0]);
+  while(boxes.length<K){
+    let bi=-1,best=0; boxes.forEach((b,i)=>{ if(b.ids.length>1&&b.score>best){best=b.score;bi=i;} });
+    if(bi<0) break;
+    const b=boxes[bi], ch=b.ch; const arr=Array.from(b.ids).sort((x,y)=>px[x*3+ch]-px[y*3+ch]); const mid=arr.length>>1;
+    boxes.splice(bi,1,stats({ids:Uint32Array.from(arr.slice(0,mid))}),stats({ids:Uint32Array.from(arr.slice(mid))}));
+  }
+  const pal=boxes.map(b=>{ let r=0,g=0,bb=0; for(const i of b.ids){ r+=px[i*3]; g+=px[i*3+1]; bb+=px[i*3+2]; } const c=b.ids.length; return [Math.round(r/c),Math.round(g/c),Math.round(bb/c)]; });
+  while(pal.length<K) pal.push([0,0,0]);
+  return pal;
+}
+class Bytes{ constructor(){ this.chunks=[]; this.buf=new Uint8Array(1<<16); this.p=0; }
+  byte(b){ if(this.p>=this.buf.length){ this.chunks.push(this.buf); this.buf=new Uint8Array(1<<16); this.p=0; } this.buf[this.p++]=b; }
+  u16(v){ this.byte(v&255); this.byte((v>>8)&255); }
+  str(s){ for(const ch of s) this.byte(ch.charCodeAt(0)); }
+  bytes(a){ for(let i=0;i<a.length;i++) this.byte(a[i]); }
+  blob(type){ return new Blob([...this.chunks,this.buf.slice(0,this.p)],{type}); }
+}
+function lzw(out,idx,minCode){
+  const clear=1<<minCode, eoi=clear+1; let nBits=minCode+1, maxcode=(1<<nBits)-1, next=eoi+1, clearFlag=false;
+  const dict=new Map(); let acc=0, accBits=0; const block=new Uint8Array(255); let bl=0;
+  const flushByte=b=>{ block[bl++]=b; if(bl===255){ out.byte(255); out.bytes(block); bl=0; } };
+  const output=code=>{
+    acc|=code<<accBits; accBits+=nBits;
+    while(accBits>=8){ flushByte(acc&255); acc>>>=8; accBits-=8; }
+    if(clearFlag){ nBits=minCode+1; maxcode=(1<<nBits)-1; clearFlag=false; }
+    else if(next>maxcode){ nBits++; maxcode=nBits===12?4096:(1<<nBits)-1; }
+  };
+  out.byte(minCode); output(clear);
+  let prefix=idx[0];
+  for(let i=1;i<idx.length;i++){
+    const k=idx[i]; const key=prefix*256+k; const hit=dict.get(key);
+    if(hit!==undefined){ prefix=hit; continue; }
+    output(prefix);
+    if(next<4096){ dict.set(key,next++); }
+    else { dict.clear(); next=clear+2; clearFlag=true; output(clear); }
+    prefix=k;
+  }
+  output(prefix); output(eoi);
+  if(accBits>0) flushByte(acc&255);
+  if(bl>0){ out.byte(bl); out.bytes(block.subarray(0,bl)); }
+  out.byte(0);
+}
+
+/* ---------- Export ---------- */
+let busy=false, lastResult=null, downloads=null;
+if(window.claude && window.claude.use){ window.claude.use('downloads').then(d=>{ downloads=d; }).catch(()=>{}); }
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const yieldUI=()=>new Promise(r=>requestAnimationFrame(()=>r()));
+function setStatus(msg,cls=''){ const s=$('status'); s.textContent=msg; s.className='status '+cls; }
+function setProgress(f){ $('progress').hidden=f==null; if(f!=null) $('progressBar').style.width=(f*100).toFixed(1)+'%'; }
+
+async function encodeGif(look,w,h,fps){
+  const frames=+look.cycles===0?1:Math.round(look.duration*fps); const gl=offR.gl; const buf=new Uint8Array(w*h*4);
+  setStatus('Building color palette…');
+  const samples=[]; const stepPx=Math.max(1,Math.floor(Math.sqrt(w*h/9000)));
+  for(let s=0;s<6;s++){
+    offR.render(look,s/6,w,h); gl.readPixels(0,0,w,h,gl.RGBA,gl.UNSIGNED_BYTE,buf);
+    for(let y=0;y<h;y+=stepPx) for(let x=(y*7)%stepPx;x<w;x+=stepPx){ const i=(y*w+x)*4; samples.push(buf[i],buf[i+1],buf[i+2]); }
+  }
+  const pal=medianCut(new Uint8Array(samples),256);
+  const cache=new Int16Array(1<<18).fill(-1);
+  const nearest=(r,g,b)=>{ const key=((r>>2)<<12)|((g>>2)<<6)|(b>>2); let v=cache[key]; if(v>=0) return v; let bd=1e9;
+    for(let i=0;i<256;i++){ const p=pal[i]; const dr=p[0]-r,dg=p[1]-g,db=p[2]-b; const d=dr*dr*3+dg*dg*4+db*db*2; if(d<bd){bd=d;v=i;} } cache[key]=v; return v; };
+  const out=new Bytes(); out.str('GIF89a'); out.u16(w); out.u16(h); out.byte(0xF7); out.byte(0); out.byte(0);
+  pal.forEach(p=>{ out.byte(p[0]); out.byte(p[1]); out.byte(p[2]); });
+  out.byte(0x21); out.byte(0xFF); out.byte(11); out.str('NETSCAPE2.0'); out.byte(3); out.byte(1); out.u16(0); out.byte(0);
+  const delay=Math.max(2,Math.round(100/fps)); const idx=new Uint8Array(w*h);
+  for(let f=0;f<frames;f++){
+    offR.render(look,frames===1?phase:f/frames,w,h); gl.readPixels(0,0,w,h,gl.RGBA,gl.UNSIGNED_BYTE,buf);
+    for(let y=0;y<h;y++){ const sy=h-1-y; for(let x=0;x<w;x++){ const i=(sy*w+x)*4; idx[y*w+x]=nearest(buf[i],buf[i+1],buf[i+2]); } }
+    out.byte(0x21); out.byte(0xF9); out.byte(4); out.byte(0x04); out.u16(delay); out.byte(0); out.byte(0);
+    out.byte(0x2C); out.u16(0); out.u16(0); out.u16(w); out.u16(h); out.byte(0);
+    lzw(out,idx,8);
+    setProgress((f+1)/frames); setStatus(`Encoding GIF frame ${f+1} of ${frames}…`);
+    await yieldUI();
+  }
+  out.byte(0x3B);
+  return {blob:out.blob('image/gif'),ext:'gif'};
+}
+
+async function encodeMp4(look,w,h,fps){
+  const frames=Math.round(look.duration*fps); const bitrate=bitrateFor(w,h,fps);
+  if(window.VideoEncoder && window.Mp4Muxer){
+    const cands=['avc1.640033','avc1.4d0033','avc1.42e033','avc1.640034','avc1.640028','avc1.4d0028','avc1.42e01f'];
+    let codec=null;
+    for(const c of cands){ try{ const s=await VideoEncoder.isConfigSupported({codec:c,width:w,height:h,bitrate,framerate:fps}); if(s.supported){codec=c;break;} }catch(e){} }
+    if(codec){
+      const muxer=new Mp4Muxer.Muxer({target:new Mp4Muxer.ArrayBufferTarget(),video:{codec:'avc',width:w,height:h,frameRate:fps},fastStart:'in-memory'});
+      let encErr=null;
+      const enc=new VideoEncoder({output:(chunk,meta)=>muxer.addVideoChunk(chunk,meta),error:e=>{encErr=e;}});
+      enc.configure({codec,width:w,height:h,bitrate,framerate:fps,latencyMode:'quality',avc:{format:'avc'}});
+      const us=1e6/fps;
+      for(let i=0;i<frames;i++){
+        if(encErr) throw encErr;
+        offR.render(look,i/frames,w,h);
+        const vf=new VideoFrame(offR.c,{timestamp:Math.round(i*us),duration:Math.round(us)});
+        enc.encode(vf,{keyFrame:i%(fps*2)===0}); vf.close();
+        while(enc.encodeQueueSize>6) await sleep(2);
+        if(i%3===0){ setProgress((i+1)/frames); setStatus(`Encoding MP4 frame ${i+1} of ${frames}…`); await yieldUI(); }
+      }
+      await enc.flush(); if(encErr) throw encErr; muxer.finalize();
+      return {blob:new Blob([muxer.target.buffer],{type:'video/mp4'}),ext:'mp4'};
+    }
+  }
+  if(!window.MediaRecorder || !offR.c.captureStream) throw new Error('This browser can\'t encode video. Try a current Chrome, Edge or Safari, or export a GIF.');
+  const mime=['video/mp4;codecs=avc1.640028','video/mp4;codecs=avc1','video/mp4','video/webm;codecs=vp9','video/webm'].find(t=>MediaRecorder.isTypeSupported(t));
+  if(!mime) throw new Error('This browser can\'t record video. Try a current Chrome, Edge or Safari, or export a GIF.');
+  const ext=mime.startsWith('video/mp4')?'mp4':'webm';
+  offR.render(look,0,w,h);
+  const stream=offR.c.captureStream(0); const track=stream.getVideoTracks()[0];
+  const rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:bitrate}); const parts=[];
+  rec.ondataavailable=e=>{ if(e.data.size) parts.push(e.data); };
+  const done=new Promise(r=>rec.onstop=r);
+  rec.start(); const t0=performance.now();
+  for(let i=0;i<frames;i++){
+    offR.render(look,i/frames,w,h); track.requestFrame && track.requestFrame();
+    const wait=t0+(i+1)*1000/fps-performance.now(); if(wait>0) await sleep(wait);
+    if(i%3===0){ setProgress((i+1)/frames); setStatus(`Recording frame ${i+1} of ${frames} in real time…`); }
+  }
+  rec.stop(); await done;
+  return {blob:new Blob(parts,{type:mime.split(';')[0]}),ext};
+}
+
+async function encodePng(look,w,h){
+  offR.render(look,phase,w,h);
+  const blob=await new Promise(r=>offR.c.toBlob(r,'image/png'));
+  if(!blob) throw new Error('The PNG couldn\'t be created. Try a smaller size.');
+  return {blob,ext:'png'};
+}
+
+async function offerSave(){
+  if(!lastResult) return;
+  if(!downloads){
+    const a=document.createElement('a'); a.href=URL.createObjectURL(lastResult.blob); a.download=lastResult.name;
+    document.body.append(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),60000);
+    setStatus('Saved '+lastResult.name,'ok'); return;
+  }
+  try{ await downloads.save({filename:lastResult.name,data:lastResult.blob}); setStatus('Saved '+lastResult.name,'ok'); }
+  catch(e){
+    const code=e&&e.code;
+    if(code==='declined') setStatus('Save cancelled. Use “Save file” when you\'re ready.');
+    else if(code==='rate_limited') setStatus('A save prompt is already open.');
+    else if(code==='too_large') setStatus('The file is too large to save here. Try a smaller size or a lower frame rate.','err');
+    else setStatus('Saving isn\'t available in this view.','err');
+  }
+}
+$('saveAgain').addEventListener('click',offerSave);
+
+$('exportBtn').addEventListener('click',async()=>{
+  if(busy) return; busy=true; $('exportBtn').disabled=true; $('result').hidden=true;
+  const look={}; LOOK_KEYS.forEach(k=>look[k]=state[k]);
+  const {w,h}=exportDims(); const fps=curFps(); const t0=performance.now();
+  setProgress(0);
+  try{
+    const r = state.format==='gif' ? await encodeGif(look,w,h,fps) : state.format==='mp4' ? await encodeMp4(look,w,h,fps) : await encodePng(look,w,h);
+    const name=`dotwash-${look.motion}-${look.shape}-${w}x${h}.${r.ext}`;
+    lastResult={blob:r.blob,name};
+    const url=URL.createObjectURL(r.blob);
+    const th=$('resultThumb'); th.innerHTML='';
+    const el = r.ext==='mp4'||r.ext==='webm' ? Object.assign(document.createElement('video'),{src:url,muted:true,loop:true,autoplay:true,playsInline:true}) : Object.assign(document.createElement('img'),{src:url,alt:'Exported '+r.ext.toUpperCase()});
+    el.className='thumb'; th.append(el);
+    $('resultName').textContent=name;
+    const mb=r.blob.size/1e6; $('resultSize').textContent=(mb<1?(r.blob.size/1e3).toFixed(0)+' KB':mb.toFixed(1)+' MB')+` · ${((performance.now()-t0)/1000).toFixed(1)} s`;
+    $('result').hidden=false; setProgress(null);
+    setStatus(r.ext==='webm'?'Done. This browser could only record WebM, not MP4.':(downloads?'Done. Confirm the save prompt to download.':'Done.'),'ok');
+    offerSave();
+  }catch(e){
+    console.error(e); setProgress(null);
+    setStatus((e&&e.message)?e.message:'Export failed. Try a smaller size.','err');
+  }finally{ busy=false; $('exportBtn').disabled=false; }
+});
+
+/* ---------- Init ---------- */
+buildButtons(); buildSliders(); paintImgThumb(); syncAll(); renderPresets(); renderStyleThumbs();
+renderFontList();
+if(state.fontWeight==null) state.fontWeight=400;
+{ const need=new Map([[state.font+'|'+state.fontWeight,[state.font,state.fontWeight]]]);
+  [...BUILTIN,...userPresets].filter(p=>p.source==='text').forEach(p=>need.set(p.font+'|'+(p.fontWeight||400),[p.font,p.fontWeight||400]));
+  Promise.all([...need.values()].map(([f,w])=>ensureFont(f,w))).then(()=>{ fontsVersion++; renderPresets(); renderFontCurrent(); }); }
+requestAnimationFrame(t=>{ last=t; frame(t); });
+})();
+</script>
+
+</body>
+</html>
