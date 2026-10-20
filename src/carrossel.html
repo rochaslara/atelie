@@ -403,6 +403,7 @@ void main(){
   const texCache=new Map();
   function texFor(it){
     let t=texCache.get(it.id);if(t&&t.src===it.src)return t;
+    if(t&&it.anim&&t.anim===it.anim){gl.bindTexture(gl.TEXTURE_2D,t.tex);gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL,false);gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,false);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,it.src);gl.generateMipmap(gl.TEXTURE_2D);t.src=it.src;return t}
     if(t)gl.deleteTexture(t.tex);
     let src=it.src,w=it.w,h=it.h;const lim=Math.min(2048,maxTex);
     if(Math.max(w,h)>lim){const k=lim/Math.max(w,h);const c=document.createElement('canvas');c.width=Math.round(w*k);c.height=Math.round(h*k);c.getContext('2d').drawImage(src,0,0,c.width,c.height);src=c}
@@ -413,7 +414,7 @@ void main(){
     gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
     if(aniso)gl.texParameterf(gl.TEXTURE_2D,aniso.TEXTURE_MAX_ANISOTROPY_EXT,Math.min(8,gl.getParameter(aniso.MAX_TEXTURE_MAX_ANISOTROPY_EXT)));
-    t={tex,src:it.src,ia:it.w/it.h};texCache.set(it.id,t);return t;
+    t={tex,src:it.src,ia:it.w/it.h,anim:it.anim||null};texCache.set(it.id,t);return t;
   }
   function prune(ids){for(const [id,t] of texCache)if(!ids.has(id)){gl.deleteTexture(t.tex);texCache.delete(id)}}
   function ensure(W,H){if(cv.width<W||cv.height<H){cv.width=Math.max(cv.width,W);cv.height=Math.max(cv.height,H)}}
@@ -720,6 +721,7 @@ function buildCtx(p,W,H,tpl){
   return{p,n,items,it:v=>items[mod(v,n)],A,sh,big,w,h,g:S.card.gap/100*2*sh,s,sl,k,e,lt:mod(p*n,1),vel,cam:{}};
 }
 function renderFrame(ctx,W,H,p,{forceOpaque=false,preset=S.preset}={}){
+  syncAnim(p*loopLen());
   ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,W,H);
   drawBackground(ctx,W,H,forceOpaque);
   if(!active().length){const u=Math.min(W,H)/100;ctx.save();ctx.setLineDash([u*1.5,u*1.2]);ctx.lineWidth=Math.max(1,u*.3);ctx.strokeStyle='rgba(255,255,255,.45)';
@@ -757,9 +759,79 @@ async function restore(){try{let p=await store.get('project2');if(!p){p=await st
   const loaded=[];for(const r of p.images||[]){try{loaded.push(frame(await fromBlob(r.blob,r.name,r.id,r.on),r))}catch(e){}}
   let all=loaded;if(p.samples){const sm=makeSamples();const st=new Map((p.sampleState||[]).map(x=>[x.id,x]));sm.forEach(s=>{const r=st.get(s.id);if(r){s.on=r.on;frame(s,r)}});all=all.concat(sm.filter(s=>st.size?st.has(s.id):true))}
   const ord=p.order||[];all.sort((a,b)=>(ord.indexOf(a.id)+1||1e6)-(ord.indexOf(b.id)+1||1e6));images=all;
-  if(p.bg){try{const b=await fromBlob(p.bg,'bg');bgImage={src:b.src,w:b.w,h:b.h,blob:p.bg}}catch(e){}}
+  if(p.bg){try{const b=await fromBlob(p.bg,'bg');bgImage={src:b.src,w:b.w,h:b.h,blob:p.bg,anim:b.anim}}catch(e){}}
   return true}catch(e){return false}}
+/* ============================== Animated images (GIF, animated WebP/PNG) ============================== */
+// Each animated image keeps its decoded frames; syncAnim() picks the frame for the current loop time.
+// The GIF's speed is nudged so a whole number of its cycles fits the carousel loop, so exports loop seamlessly.
+function animFrameAt(a,sec){const L=loopLen()*1000,n=Math.max(1,Math.round(L/a.dur)),span=L/n;
+  const t=((sec*1000)%span+span)%span/span*a.dur;let lo=0,hi=a.ends.length-1;while(lo<hi){const m=(lo+hi)>>1;if(a.ends[m]>t)hi=m;else lo=m+1}return a.frames[lo]}
+function syncAnim(sec){for(const it of images)if(it.anim)it.src=animFrameAt(it.anim,sec);if(bgImage&&bgImage.anim)bgImage.src=animFrameAt(bgImage.anim,sec)}
+const GIFD=(()=>{
+  function parse(b){let p=6;const u16=()=>{const v=b[p]|b[p+1]<<8;p+=2;return v};
+    const W=u16(),H=u16(),f=b[p++];p+=2;let gct=null;if(f&0x80){const n=2<<(f&7);gct=b.subarray(p,p+n*3);p+=n*3}
+    const frames=[];let gce={delay:0,disp:0,ti:-1};
+    while(p<b.length){const c=b[p++];if(c===0x3B)break;
+      if(c===0x21){const l=b[p++];
+        if(l===0xF9&&b[p]===4){p++;const pk=b[p++];const d=u16();const ti=b[p++];gce={disp:(pk>>2)&7,delay:d,ti:(pk&1)?ti:-1};while(b[p])p+=b[p]+1;p++}
+        else{while(p<b.length){const sz=b[p++];if(!sz)break;p+=sz}}}
+      else if(c===0x2C){const x=u16(),y=u16(),w=u16(),h=u16(),pk=b[p++];let lct=null;if(pk&0x80){const n=2<<(pk&7);lct=b.subarray(p,p+n*3);p+=n*3}
+        const mcs=b[p++];const parts=[];let len=0;while(p<b.length){const sz=b[p++];if(!sz)break;parts.push(b.subarray(p,p+sz));len+=sz;p+=sz}
+        const data=new Uint8Array(len);let o=0;for(const q of parts){data.set(q,o);o+=q.length}
+        frames.push({x,y,w,h,pal:lct||gct,inter:!!(pk&0x40),mcs,data,...gce});gce={delay:0,disp:0,ti:-1}}
+      else break}
+    return{W,H,frames}}
+  function lzw(mcs,data,n){const out=new Uint8Array(n);const clear=1<<mcs,eoi=clear+1;let size=mcs+1,mask=(1<<size)-1,next=eoi+1,old=-1,first=0;
+    const pre=new Int16Array(4096),suf=new Uint8Array(4096),stk=new Uint8Array(4097);for(let i=0;i<clear;i++)suf[i]=i;
+    let bits=0,cur=0,dp=0,op=0;
+    while(op<n){while(bits<size){if(dp>=data.length)return out;cur|=data[dp++]<<bits;bits+=8}
+      let code=cur&mask;cur>>>=size;bits-=size;
+      if(code===clear){size=mcs+1;mask=(1<<size)-1;next=eoi+1;old=-1;continue}
+      if(code===eoi)break;
+      if(old===-1){if(code>=clear)break;out[op++]=suf[code];old=first=code;continue}
+      if(code>next)break;const inCode=code;let sp=0;
+      if(code===next){stk[sp++]=first;code=old}
+      while(code>eoi){stk[sp++]=suf[code];code=pre[code]}
+      first=suf[code];stk[sp++]=first;while(sp>0&&op<n)out[op++]=stk[--sp];
+      if(next<4096){pre[next]=old;suf[next]=first;next++;if((next&mask)===0&&next<4096){size++;mask=(1<<size)-1}}
+      old=inCode}
+    return out}
+  function rows(h,inter){if(!inter)return null;const r=[];for(const [s,st] of [[0,8],[4,8],[2,4],[1,2]])for(let y=s;y<h;y+=st)r.push(y);return r}
+  async function decode(buf){const b=new Uint8Array(buf);const g=parse(b);if(g.frames.length<2)return null;
+    const n=Math.min(g.frames.length,400),{W,H}=g;
+    let k=Math.min(1,1024/Math.max(W,H));k=Math.min(k,Math.sqrt(90e6/(n*W*H)));
+    const fw=Math.max(1,Math.round(W*k)),fh=Math.max(1,Math.round(H*k));
+    const px=new Uint8ClampedArray(W*H*4),full=document.createElement('canvas');full.width=W;full.height=H;const fx=full.getContext('2d');
+    const frames=[],ends=[];let tm=0;
+    for(let i=0;i<n;i++){const fr=g.frames[i];const save=fr.disp===3?px.slice():null;
+      const idx=lzw(fr.mcs,fr.data,fr.w*fr.h),rmap=rows(fr.h,fr.inter),pal=fr.pal;
+      if(pal)for(let r=0;r<fr.h;r++){const yy=fr.y+(rmap?rmap[r]:r);if(yy>=H)continue;
+        for(let c=0;c<fr.w;c++){const xx=fr.x+c;if(xx>=W)continue;const ci=idx[r*fr.w+c];if(ci===fr.ti||ci*3+2>=pal.length)continue;
+          const o=(yy*W+xx)*4;px[o]=pal[ci*3];px[o+1]=pal[ci*3+1];px[o+2]=pal[ci*3+2];px[o+3]=255}}
+      fx.putImageData(new ImageData(px,W,H),0,0);
+      const cv=document.createElement('canvas');cv.width=fw;cv.height=fh;const cx=cv.getContext('2d');cx.imageSmoothingQuality='high';cx.drawImage(full,0,0,fw,fh);frames.push(cv);
+      tm+=fr.delay<2?100:fr.delay*10;ends.push(tm);
+      if(fr.disp===2){for(let r=fr.y;r<Math.min(H,fr.y+fr.h);r++)px.fill(0,(r*W+fr.x)*4,(r*W+Math.min(W,fr.x+fr.w))*4)}
+      else if(save)px.set(save);
+      if(i%8===7)await new Promise(r=>setTimeout(r,0))}
+    return{frames,ends,dur:tm,w:fw,h:fh}}
+  return{decode}})();
+async function decodeAnimated(blob){
+  try{const head=new Uint8Array(await blob.slice(0,6).arrayBuffer());
+    if(String.fromCharCode(...head).startsWith('GIF8'))return await GIFD.decode(await blob.arrayBuffer());
+    if(!('ImageDecoder' in window)||!/^image\/(webp|png|apng|avif)$/.test(blob.type))return null;
+    const dec=new ImageDecoder({data:await blob.arrayBuffer(),type:blob.type==='image/apng'?'image/png':blob.type});await dec.tracks.ready;
+    const tr=dec.tracks.selectedTrack;if(!tr||!tr.animated||tr.frameCount<2){dec.close();return null}
+    const n=Math.min(tr.frameCount,400);const frames=[],ends=[];let tm=0,fw=0,fh=0;
+    for(let i=0;i<n;i++){const {image}=await dec.decode({frameIndex:i});
+      if(!fw){const W=image.displayWidth,H=image.displayHeight;let k=Math.min(1,1024/Math.max(W,H));k=Math.min(k,Math.sqrt(90e6/(n*W*H)));fw=Math.max(1,Math.round(W*k));fh=Math.max(1,Math.round(H*k))}
+      const cv=document.createElement('canvas');cv.width=fw;cv.height=fh;cv.getContext('2d').drawImage(image,0,0,fw,fh);
+      tm+=image.duration?Math.max(20,image.duration/1000):100;image.close();frames.push(cv);ends.push(tm)}
+    dec.close();return{frames,ends,dur:tm,w:fw,h:fh}}
+  catch(e){return null}}
 async function fromBlob(blob,name,id,on=true){let src,w,h;
+  const anim=await decodeAnimated(blob);
+  if(anim)return{id:id||('i'+Math.random().toString(36).slice(2,9)),name,src:anim.frames[0],w:anim.w,h:anim.h,anim,thumb:URL.createObjectURL(blob),on,sample:false,blob};
   try{src=await createImageBitmap(blob);w=src.width;h=src.height}
   catch(e){src=await new Promise((res,rej)=>{const im=new Image();im.onload=()=>res(im);im.onerror=rej;im.src=URL.createObjectURL(blob)});w=src.naturalWidth;h=src.naturalHeight}
   return{id:id||('i'+Math.random().toString(36).slice(2,9)),name,src,w,h,thumb:URL.createObjectURL(blob),on,sample:false,blob}}
@@ -993,7 +1065,7 @@ function wire(){
   $('#noneBtn').addEventListener('click',()=>{images.forEach(i=>i.on=false);renderThumbs();persist()});
   $('#clearBtn').addEventListener('click',()=>{images=[];renderThumbs();persist()});
   $('#bgImgBtn').addEventListener('click',()=>$('#bgFile').click());
-  $('#bgFile').addEventListener('change',async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;try{const b=await fromBlob(f,'bg');bgImage={src:b.src,w:b.w,h:b.h,blob:f};persist();queueThumbs()}catch(err){}});
+  $('#bgFile').addEventListener('change',async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;try{const b=await fromBlob(f,'bg');bgImage={src:b.src,w:b.w,h:b.h,blob:f,anim:b.anim};persist();queueThumbs()}catch(err){}});
   const sw=$('#swatches');SWATCHES.forEach(([a,b])=>{const x=document.createElement('button');x.type='button';x.style.background=`linear-gradient(135deg,${a} 50%,${b} 50%)`;x.setAttribute('aria-label',`Colors ${a} and ${b}`);x.addEventListener('click',()=>{S.bg.c1=a;S.bg.c2=b;changed('bg.c1')});sw.appendChild(x)});
   const st=$('#stage');
   ['dragenter','dragover'].forEach(t=>st.addEventListener(t,e=>{if(dragId||!e.dataTransfer||![...e.dataTransfer.types].includes('Files'))return;e.preventDefault();st.classList.add('dragging')}));
