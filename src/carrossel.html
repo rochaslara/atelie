@@ -294,6 +294,8 @@ select{width:100%;background:var(--bg);border:1px solid var(--line);border-radiu
       <div class="row two"><label for="eW">Width</label><select id="eW" data-bind="exp.width" data-num></select></div>
       <div class="field"><span class="lbl">Frame rate</span><div class="seg" id="fpsSeg" data-bind="exp.fps" data-num></div></div>
       <div class="row" data-when="exp.format=mp4"><label for="eRep">Repeat</label><input type="range" id="eRep" data-bind="exp.repeat" min="1" max="6" step="1"><output data-unit="×"></output></div>
+      <div class="row" data-when="exp.format=gif"><label for="eQ">Quality</label><input type="range" id="eQ" data-bind="exp.quality" min="5" max="100" step="5"><output data-unit="%"></output></div>
+      <p class="note" id="eQh" data-when="exp.format=gif"></p>
       <div class="check" data-when="exp.format=gif"><label for="eDither" class="lbl">Dither (smoother gradients)</label><span class="switch"><input type="checkbox" id="eDither" data-bind="exp.dither"><i></i></span></div>
       <p class="note mono" id="expInfo"></p>
       <button class="btn primary big" id="exportBtn">Export</button>
@@ -302,43 +304,9 @@ select{width:100%;background:var(--bg);border:1px solid var(--line);border-radiu
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/mp4-muxer@5.1.3/build/mp4-muxer.js"></script>
+<script>/*@GIFQ*/</script>
 <script>
 "use strict";
-/* ============================== GIF encoder ============================== */
-const GIF=(()=>{function Hist(){return{n:new Uint32Array(32768),r:new Float64Array(32768),g:new Float64Array(32768),b:new Float64Array(32768)}}
-function addToHist(h,d){for(let i=0;i<d.length;i+=4){if(d[i+3]<128)continue;const r=d[i],g=d[i+1],b=d[i+2],k=((r>>3)<<10)|((g>>3)<<5)|(b>>3);h.n[k]++;h.r[k]+=r;h.g[k]+=g;h.b[k]+=b}}
-function buildPalette(h,max){const keys=[];for(let k=0;k<32768;k++)if(h.n[k])keys.push(k);if(!keys.length)return[[0,0,0]];
-const ch=(k,c)=>c===0?(k>>10)&31:c===1?(k>>5)&31:k&31;
-function stats(arr){let mn=[31,31,31],mx=[0,0,0],cnt=0;for(const k of arr){for(let c=0;c<3;c++){const v=ch(k,c);if(v<mn[c])mn[c]=v;if(v>mx[c])mx[c]=v}cnt+=h.n[k]}const rg=[mx[0]-mn[0],mx[1]-mn[1],mx[2]-mn[2]];const c=rg[0]>=rg[1]&&rg[0]>=rg[2]?0:rg[1]>=rg[2]?1:2;return{arr,cnt,range:rg[c],c,score:rg[c]*Math.sqrt(cnt)}}
-let boxes=[stats(keys)];while(boxes.length<max){let bi=-1,best=0;for(let i=0;i<boxes.length;i++)if(boxes[i].arr.length>1&&boxes[i].range>0&&boxes[i].score>best){best=boxes[i].score;bi=i}if(bi<0)break;
-const bx=boxes[bi],c=bx.c;bx.arr.sort((a,b)=>ch(a,c)-ch(b,c));let acc=0,half=bx.cnt/2,cut=1;for(let i=0;i<bx.arr.length-1;i++){acc+=h.n[bx.arr[i]];cut=i+1;if(acc>=half)break}
-boxes.splice(bi,1,stats(bx.arr.slice(0,cut)),stats(bx.arr.slice(cut)))}
-return boxes.map(bx=>{let n=0,r=0,g=0,b=0;for(const k of bx.arr){n+=h.n[k];r+=h.r[k];g+=h.g[k];b+=h.b[k]}return[Math.round(r/n),Math.round(g/n),Math.round(b/n)]})}
-function makeMapper(pal){const lut=new Int16Array(32768).fill(-1);const pr=pal.map(p=>p[0]),pg=pal.map(p=>p[1]),pb=pal.map(p=>p[2]);
-return(r,g,b)=>{const k=((r>>3)<<10)|((g>>3)<<5)|(b>>3);let v=lut[k];if(v>=0)return v;const cr=(r&0xf8)|4,cg=(g&0xf8)|4,cb=(b&0xf8)|4;let bd=1e9;
-for(let i=0;i<pr.length;i++){const dr=pr[i]-cr,dg=pg[i]-cg,db=pb[i]-cb,d=dr*dr*2+dg*dg*4+db*db*3;if(d<bd){bd=d;v=i}}lut[k]=v;return v}}
-function indexFrame(d,w,h,pal,map,dither,ti){const out=new Uint8Array(w*h);
-if(!dither){for(let i=0,p=0;p<out.length;p++,i+=4)out[p]=d[i+3]<128?ti:map(d[i],d[i+1],d[i+2]);return out}
-let e0=new Float32Array((w+2)*3),e1=new Float32Array((w+2)*3);const S=.75;
-for(let y=0;y<h;y++){const t=e0;e0=e1;e1=t;e1.fill(0);for(let x=0;x<w;x++){const p=y*w+x,i=p*4;if(d[i+3]<128){out[p]=ti;continue}const ei=(x+1)*3;
-const r=Math.max(0,Math.min(255,d[i]+e0[ei])),g=Math.max(0,Math.min(255,d[i+1]+e0[ei+1])),b=Math.max(0,Math.min(255,d[i+2]+e0[ei+2]));
-const idx=map(r|0,g|0,b|0);out[p]=idx;const c=pal[idx],er=(r-c[0])*S,eg=(g-c[1])*S,eb=(b-c[2])*S;
-e0[ei+3]+=er*7/16;e0[ei+4]+=eg*7/16;e0[ei+5]+=eb*7/16;e1[ei-3]+=er*3/16;e1[ei-2]+=eg*3/16;e1[ei-1]+=eb*3/16;e1[ei]+=er*5/16;e1[ei+1]+=eg*5/16;e1[ei+2]+=eb*5/16;e1[ei+3]+=er/16;e1[ei+4]+=eg/16;e1[ei+5]+=eb/16}}return out}
-class Bytes{constructor(){this.buf=new Uint8Array(1<<20);this.len=0}grow(n){if(this.len+n>this.buf.length){let s=this.buf.length*2;while(s<this.len+n)s*=2;const nb=new Uint8Array(s);nb.set(this.buf.subarray(0,this.len));this.buf=nb}}
-byte(b){this.grow(1);this.buf[this.len++]=b}word(w){this.byte(w&255);this.byte((w>>8)&255)}str(s){for(let i=0;i<s.length;i++)this.byte(s.charCodeAt(i))}bytes(a){this.grow(a.length);this.buf.set(a,this.len);this.len+=a.length}result(){return this.buf.slice(0,this.len)}}
-function lzw(out,px){const CLEAR=256,EOI=257;out.byte(8);const block=new Uint8Array(255);let bl=0,acc=0,nb=0,size=9,next=258;const dict=new Map();
-const fb=b=>{block[bl++]=b;if(bl===255){out.byte(255);out.bytes(block);bl=0}};const emit=c=>{acc|=c<<nb;nb+=size;while(nb>=8){fb(acc&255);acc>>>=8;nb-=8}};
-emit(CLEAR);let prefix=px[0];for(let i=1;i<px.length;i++){const k=px[i],key=(prefix<<8)|k,hit=dict.get(key);if(hit!==undefined){prefix=hit;continue}emit(prefix);
-if(next<4096){if(next>(1<<size)-1&&size<12)size++;dict.set(key,next++)}else{emit(CLEAR);dict.clear();next=258;size=9}prefix=k}
-emit(prefix);if(next>(1<<size)-1&&size<12)size++;emit(EOI);if(nb>0)fb(acc&255);if(bl){out.byte(bl);out.bytes(block.subarray(0,bl))}out.byte(0)}
-class Encoder{constructor(w,h,pal,{transparent=false,delayCs=5}={}){this.w=w;this.h=h;this.pal=pal.slice(0,transparent?255:256);this.trans=transparent?255:-1;this.delay=delayCs;
-const o=this.o=new Bytes();o.str('GIF89a');o.word(w);o.word(h);o.byte(0xF7);o.byte(0);o.byte(0);for(let i=0;i<256;i++){const c=this.pal[i]||[0,0,0];o.byte(c[0]);o.byte(c[1]);o.byte(c[2])}
-o.byte(0x21);o.byte(0xFF);o.byte(11);o.str('NETSCAPE2.0');o.byte(3);o.byte(1);o.word(0);o.byte(0);this.map=makeMapper(this.pal)}
-addFrame(rgba,dither){const o=this.o,t=this.trans>=0,idx=indexFrame(rgba,this.w,this.h,this.pal,this.map,dither,this.trans);
-o.byte(0x21);o.byte(0xF9);o.byte(4);o.byte(((t?2:1)<<2)|(t?1:0));o.word(this.delay);o.byte(t?this.trans:0);o.byte(0);
-o.byte(0x2C);o.word(0);o.word(0);o.word(this.w);o.word(this.h);o.byte(0);lzw(o,idx)}finish(){this.o.byte(0x3B);return this.o.result()}}
-return{Hist,addToHist,buildPalette,Encoder}})();
-
 /* ============================== Math ============================== */
 const TAU=Math.PI*2, PI=Math.PI;
 const mod=(a,n)=>((a%n)+n)%n;
@@ -470,7 +438,7 @@ const DEFAULT={
   card:{shape:'4:5',size:52,radius:3,gap:4,shadow:45,outline:false},
   motion:{sec:2,ease:'smooth',hold:60,tilt:0,reverse:false,crowd:34,hole:0},
   bg:{on:true,type:'solid',c1:'#0a0a0b',c2:'#26283a',angle:135,grain:0,blur:0,dim:20},
-  exp:{format:'mp4',width:1080,fps:30,repeat:1,dither:true},
+  exp:{format:'mp4',width:1080,fps:30,repeat:1,dither:true,quality:80},
 };
 let S=structuredClone(DEFAULT);
 let images=[], bgImage=null;
@@ -1007,6 +975,7 @@ function buildExportSelects(){const sel=$('#eW');sel.innerHTML='';widthOptions()
 function expDims(){const w=S.exp.width;let h=Math.round(w/ratio(S.aspect));h+=h%2;return{w,h}}
 function updateExportInfo(){const {w,h}=expDims(),fps=S.exp.fps,fr=Math.round(loopLen()*fps),reps=S.exp.format==='mp4'?S.exp.repeat:1;
   $('#expInfo').textContent=`${w}×${h} · ${fr*reps} frames · ${(loopLen()*reps).toFixed(1)} s${S.exp.format==='gif'?' · loops forever':''}`;
+  $('#eQh').textContent=GIFQ.describe(S.exp.quality)+'. Lower quality makes a smaller file.';
   $('#exportTopFmt').textContent=S.exp.format.toUpperCase();$('#dims').textContent=`${S.aspect} · ${w}×${h}`}
 
 let downloads=null;
@@ -1033,13 +1002,12 @@ async function runExport(){
 function stamp(){const d=new Date();const z=n=>String(n).padStart(2,'0');return`${d.getFullYear()}${z(d.getMonth()+1)}${z(d.getDate())}-${z(d.getHours())}${z(d.getMinutes())}`}
 const fname=ext=>`carrossel-${S.preset}-${stamp()}.${ext}`;
 async function exportGif(){
-  const {w,h}=expDims(),fps=S.exp.fps,frames=Math.max(2,Math.round(loopLen()*fps)),delay=Math.max(2,Math.round(100/fps));
-  const c=document.createElement('canvas');c.width=w;c.height=h;const ctx=c.getContext('2d',{willReadFrequently:true});const transparent=!S.bg.on;
-  const hist=GIF.Hist();const samples=Math.min(frames,16);
-  for(let i=0;i<samples;i++){if(cancelFlag)return null;renderFrame(ctx,w,h,i/samples);GIF.addToHist(hist,ctx.getImageData(0,0,w,h).data);ov.prog(.1*i/samples,'Building palette…');await yieldUI()}
-  const enc=new GIF.Encoder(w,h,GIF.buildPalette(hist,transparent?255:256),{transparent,delayCs:delay});
-  for(let i=0;i<frames;i++){if(cancelFlag)return null;renderFrame(ctx,w,h,i/frames);enc.addFrame(ctx.getImageData(0,0,w,h).data,S.exp.dither);ov.prog(.1+.9*(i+1)/frames,`Frame ${i+1} / ${frames}`);await yieldUI()}
-  return{blob:new Blob([enc.finish()],{type:'image/gif'}),kind:'gif',ext:'gif',filename:fname('gif')}}
+  const {w,h}=expDims(),fps=S.exp.fps,frames=Math.max(2,Math.round(loopLen()*fps));
+  const c=document.createElement('canvas');c.width=w;c.height=h;const ctx=c.getContext('2d',{willReadFrequently:true});
+  const blob=await GIFQ.encode({w,h,n:frames,delayCs:100/fps,transparent:!S.bg.on,quality:S.exp.quality,dither:S.exp.dither,
+    getFrame:i=>{renderFrame(ctx,w,h,i/frames);return ctx.getImageData(0,0,w,h).data},onProgress:(f,m)=>ov.prog(f,m),isCancelled:()=>cancelFlag});
+  if(!blob)return null;
+  return{blob,kind:'gif',ext:'gif',filename:fname('gif')}}
 async function exportMp4(){
   const {w,h}=expDims(),fps=S.exp.fps,per=Math.round(loopLen()*fps),frames=per*S.exp.repeat;
   const c=document.createElement('canvas');c.width=w;c.height=h;const ctx=c.getContext('2d');

@@ -133,6 +133,7 @@ main{display:grid;grid-template-rows:minmax(0,1fr) auto;min-width:0;min-height:0
   .dims{display:none}
 }
 @media (prefers-reduced-motion:reduce){.bar i{transition:none}}
+  .qhint{margin:-4px 0 0;font-size:11.5px;opacity:.7}
 </style>
 
 <div class="app">
@@ -343,6 +344,7 @@ main{display:grid;grid-template-rows:minmax(0,1fr) auto;min-width:0;min-height:0
 <div class="toast" id="toast" hidden></div>
 
 <script src="https://cdn.jsdelivr.net/npm/mp4-muxer@5.1.3/build/mp4-muxer.min.js"></script>
+<script>/*@GIFQ*/</script>
 <script>
 (() => {
 'use strict';
@@ -1940,101 +1942,27 @@ $('bGif').addEventListener('click', () => {
   openModal('Export GIF', `<div class="stack">
     <div class="row"><div class="lab"><label for="gW">Width</label></div><select id="gW"><option value="480">480 px</option><option value="640" selected>640 px</option><option value="800">800 px</option><option value="1080">1080 px (large file)</option></select></div>
     <div class="row"><div class="lab"><label for="gF">Frame rate</label></div><select id="gF"><option value="15">15 fps</option><option value="20" selected>20 fps</option><option value="25">25 fps</option><option value="30">30 fps</option></select></div>
+    <div class="row"><div class="lab"><label for="gQ">Quality</label><output id="gQo"></output></div><input type="range" id="gQ" min="5" max="100" step="5" value="${gifQuality()}"></div>
+    <p class="qhint" id="gQh"></p>
     <div class="toggles"><button class="tg" type="button" id="gD" aria-pressed="false">Dither (smoother glows, bigger file)</button></div></div>`,
     `One seamless loop of ${S.duration.toFixed(1)} s.`, exportGif);
   $('gD').addEventListener('click', e => e.currentTarget.setAttribute('aria-pressed', e.currentTarget.getAttribute('aria-pressed') !== 'true'));
+  const qs = () => { const v = +$('gQ').value; $('gQo').textContent = v + '%'; $('gQh').textContent = GIFQ.describe(v) + '. Lower quality makes a smaller file.'; try { localStorage.setItem('atelie-gifq-type', v); } catch (e) {} };
+  $('gQ').addEventListener('input', qs); qs();
 });
+function gifQuality(){ try { const v = +localStorage.getItem('atelie-gifq-type'); return v >= 5 && v <= 100 ? v : 80; } catch (e) { return 80; } }
 async function exportGif(){
-  const gw = +$('gW').value, fps = +$('gF').value, dither = $('gD').getAttribute('aria-pressed') === 'true';
+  const gw = +$('gW').value, fps = +$('gF').value, dither = $('gD').getAttribute('aria-pressed') === 'true', q = +$('gQ').value;
   const gh = Math.round(gw * cv.height / cv.width);
   const n = Math.max(2, Math.round(S.duration * fps));
   const sc = document.createElement('canvas'); sc.width = gw; sc.height = gh; const sx = sc.getContext('2d', {willReadFrequently:true});
   sx.imageSmoothingQuality = 'high';
-  const trans = !!S.trn;
-  const grab = t => { render(t); sx.clearRect(0, 0, gw, gh); sx.drawImage(cv, 0, 0, gw, gh); return sx.getImageData(0, 0, gw, gh).data; };
-  const sampleFrames = Math.min(n, 10), samples = [];
-  for (let i = 0; i < sampleFrames; i++) {
-    const d = grab(i/sampleFrames); const step = Math.max(1, Math.floor(gw*gh/9000));
-    for (let p = 0; p < gw*gh; p += step) if (!trans || d[p*4+3] >= 128) samples.push(d[p*4], d[p*4+1], d[p*4+2]);
-    prog_(i/sampleFrames*.1, 'Building palette…'); await tick(); if (cancelled) return;
-  }
-  if (!samples.length) samples.push(0, 0, 0);
-  const pal = medianCut(new Uint8Array(samples), trans ? 255 : 256);
-  if (trans) pal.splice(255*3, 3, 0, 0, 0);
-  const lut = new Int16Array(32768).fill(-1);
-  const nPal = trans ? 255*3 : pal.length;
-  const nearest = (r, g, b) => { const key = (r>>3)<<10 | (g>>3)<<5 | (b>>3); let v = lut[key]; if (v >= 0) return v; let best = 0, bd = 1e9; for (let i = 0; i < nPal; i += 3) { const dr = pal[i]-r, dg = pal[i+1]-g, db = pal[i+2]-b; const d = dr*dr*2 + dg*dg*3 + db*db; if (d < bd) { bd = d; best = i/3; } } lut[key] = best; return best; };
-  const B = [0,8,2,10,12,4,14,6,3,11,1,9,15,7,13,5];
-  const gif = new GifWriter(gw, gh, pal, Math.round(100/fps), trans);
-  const idx = new Uint8Array(gw*gh);
-  for (let f = 0; f < n; f++) {
-    const d = grab(f/n);
-    for (let y = 0, p = 0; y < gh; y++) for (let x = 0; x < gw; x++, p++) {
-      let r = d[p*4], g = d[p*4+1], b = d[p*4+2];
-      if (dither) { const o = (B[(y&3)*4 + (x&3)]/16 - .5)*18; r = Math.max(0, Math.min(255, r+o)); g = Math.max(0, Math.min(255, g+o)); b = Math.max(0, Math.min(255, b+o)); }
-      idx[p] = trans && d[p*4+3] < 128 ? 255 : nearest(r|0, g|0, b|0);
-    }
-    gif.frame(idx);
-    prog_(.1 + .9*(f+1)/n, `Encoding frame ${f+1} of ${n}…`); await tick(); if (cancelled) return;
-  }
-  await saveFile(new Blob([gif.end()], {type:'image/gif'}), `typeshift-${slug()}.gif`);
+  const grab = i => { render(i / n); sx.clearRect(0, 0, gw, gh); sx.drawImage(cv, 0, 0, gw, gh); return sx.getImageData(0, 0, gw, gh).data; };
+  const blob = await GIFQ.encode({ w:gw, h:gh, n, delayCs:100/fps, transparent:!!S.trn, quality:q, dither, getFrame:grab,
+    onProgress:(f, m) => prog_(f, m), isCancelled:() => cancelled });
+  if (!blob) return;
+  await saveFile(blob, `typeshift-${slug()}.gif`);
 }
-function medianCut(px, k){
-  const n = px.length/3; const boxes = [Array.from({length:n}, (_, i) => i)];
-  const range = b => { const mn = [255,255,255], mx = [0,0,0]; for (const i of b) for (let c = 0; c < 3; c++) { const v = px[i*3+c]; if (v < mn[c]) mn[c] = v; if (v > mx[c]) mx[c] = v; } const r = [mx[0]-mn[0], mx[1]-mn[1], mx[2]-mn[2]]; const ch = r.indexOf(Math.max(...r)); return {ch, size: r[ch]}; };
-  while (boxes.length < k) {
-    let bi = -1, best = 0, bch = 0;
-    boxes.forEach((b, i) => { if (b.length < 2) return; const r = range(b); const score = r.size * Math.sqrt(b.length); if (score > best) { best = score; bi = i; bch = r.ch; } });
-    if (bi < 0 || best === 0) break;
-    const b = boxes[bi]; b.sort((x, y) => px[x*3+bch] - px[y*3+bch]);
-    const mid = b.length >> 1; boxes.splice(bi, 1, b.slice(0, mid), b.slice(mid));
-  }
-  const pal = [];
-  boxes.forEach(b => { let r = 0, g = 0, bl = 0; for (const i of b) { r += px[i*3]; g += px[i*3+1]; bl += px[i*3+2]; } pal.push(Math.round(r/b.length), Math.round(g/b.length), Math.round(bl/b.length)); });
-  while (pal.length < 768) pal.push(0);
-  return pal.slice(0, 768);
-}
-class GifWriter {
-  constructor(w, h, pal, delay, trans){
-    this.w = w; this.h = h; this.delay = delay; this.trans = !!trans; this.chunks = []; this.buf = [];
-    const b = this.buf, w16 = v => b.push(v & 255, v >> 8 & 255);
-    for (const c of 'GIF89a') b.push(c.charCodeAt(0));
-    w16(w); w16(h); b.push(0xF7, 0, 0);
-    for (let i = 0; i < 768; i++) b.push(pal[i]);
-    b.push(0x21, 0xFF, 0x0B); for (const c of 'NETSCAPE2.0') b.push(c.charCodeAt(0)); b.push(3, 1, 0, 0, 0);
-    this.flush();
-  }
-  flush(){ this.chunks.push(new Uint8Array(this.buf)); this.buf = []; }
-  frame(idx){
-    const b = this.buf, w16 = v => b.push(v & 255, v >> 8 & 255);
-    b.push(0x21, 0xF9, 4, this.trans ? 0x09 : 0x04); w16(this.delay); b.push(this.trans ? 255 : 0, 0);
-    b.push(0x2C); w16(0); w16(0); w16(this.w); w16(this.h); b.push(0);
-    b.push(8);
-    const data = lzw(idx, 8);
-    for (let i = 0; i < data.length; i += 255) { const len = Math.min(255, data.length - i); b.push(len); for (let j = 0; j < len; j++) b.push(data[i+j]); }
-    b.push(0); this.flush();
-  }
-  end(){ this.buf.push(0x3B); this.flush(); return new Blob(this.chunks); }
-}
-function lzw(ix, minCode){
-  const out = []; const clear = 1 << minCode, eoi = clear + 1;
-  let codeSize = minCode + 1, next = eoi + 1, cur = 0, shift = 0, table = new Map();
-  const emit = c => { cur |= c << shift; shift += codeSize; while (shift >= 8) { out.push(cur & 255); cur >>>= 8; shift -= 8; } };
-  emit(clear);
-  let ib = ix[0];
-  for (let i = 1; i < ix.length; i++) {
-    const k = ix[i], key = ib << 8 | k, v = table.get(key);
-    if (v !== undefined) { ib = v; continue; }
-    emit(ib);
-    if (next === 4096) { emit(clear); next = eoi + 1; codeSize = minCode + 1; table = new Map(); }
-    else { if (next >= (1 << codeSize)) codeSize++; table.set(key, next++); }
-    ib = k;
-  }
-  emit(ib); emit(eoi);
-  if (shift > 0) out.push(cur & 255);
-  return out;
-}
-
 /* ================================================================ MP4 */
 $('bMp4').addEventListener('click', () => {
   const wc = 'VideoEncoder' in window && window.Mp4Muxer;

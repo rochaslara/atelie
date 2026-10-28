@@ -6,6 +6,8 @@ apps=[('type','typeshift.html',False),('carousel','carrossel.html',False),('dots
 out={}
 for key,f,hide in apps:
     s=open(U+f,encoding='utf-8').read()
+    s=s.replace('<script>/*@GIFQ*/</script>','<script>'+open(U+'gifq.js',encoding='utf-8').read()+'</script>')
+    open(os.path.join(os.path.dirname(U[:-1]),'build',f),'w',encoding='utf-8').write(s)
     shim=SHIM if hide else SHIM.split('<style>')[0]
     if '<head>' in s:
         s=s.replace('<head>','<head>'+shim,1)
