@@ -142,7 +142,7 @@ main{display:grid;grid-template-rows:minmax(0,1fr) auto;min-width:0;min-height:0
     <div class="hright">
       <button class="btn small" id="bTheme" type="button" aria-label="Interface theme">Theme: Auto</button>
       <span class="sep" aria-hidden="true"></span>
-      <button class="btn" id="bPng" type="button">PNG frame</button>
+      <button class="btn" id="bPng" type="button">Image</button>
       <button class="btn" id="bGif" type="button">GIF</button>
       <button class="btn primary" id="bMp4" type="button">MP4</button>
     </div>
@@ -1918,7 +1918,32 @@ function showResult(blob, name){
 }
 let toastT; function toast(msg){ const t = $('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 3200); }
 const slug = () => (S.text.split('\n')[0] || 'type').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 24) || 'type';
-$('bPng').addEventListener('click', () => { render(curT); cv.toBlob(b => { if (b) saveFile(b, `typeshift-${slug()}.png`); else toast('Could not capture the frame.'); }, 'image/png'); });
+function imgPref(){ try { return Object.assign({t:'png', q:90}, JSON.parse(localStorage.getItem('atelie-img-type') || '{}')); } catch (e) { return {t:'png', q:90}; } }
+$('bPng').addEventListener('click', () => {
+  const pr = imgPref();
+  openModal('Export image', `<div class="stack">
+    <div class="row"><div class="lab"><label for="iT">Format</label></div><select id="iT"><option value="png">PNG</option><option value="webp">WebP</option><option value="jpeg">JPEG</option></select></div>
+    <div class="row" id="iQr"><div class="lab"><label for="iQ">Quality</label><output id="iQo"></output></div><input type="range" id="iQ" min="40" max="100" step="1" value="${pr.q}"></div>
+    <div class="row"><div class="lab"><label for="iS">Size</label></div><select id="iS"><option value="1">100% · ${cv.width}×${cv.height}</option><option value=".5">50% · ${Math.round(cv.width/2)}×${Math.round(cv.height/2)}</option></select></div>
+    <p class="qhint" id="iH"></p></div>`, 'The frame currently on screen.', exportImage);
+  $('iT').value = pr.t;
+  const upd = () => { const t = $('iT').value, q = +$('iQ').value; $('iQr').hidden = t === 'png'; $('iQo').textContent = q + '%';
+    $('iH').textContent = IMGX.hint(t) + (t === 'jpeg' && S.trn ? ' Your background is set to transparent, so the image keeps the background colour.' : '');
+    try { localStorage.setItem('atelie-img-type', JSON.stringify({t, q})); } catch (e) {} };
+  $('iT').addEventListener('change', upd); $('iQ').addEventListener('input', upd); upd();
+});
+async function exportImage(){
+  const t = $('iT').value, q = +$('iQ').value, sc = +$('iS').value;
+  if (t === 'jpeg') forceOpaque = true;
+  try {
+    render(curT); let src = cv;
+    if (sc !== 1) { src = document.createElement('canvas'); src.width = Math.round(cv.width*sc); src.height = Math.round(cv.height*sc);
+      const x = src.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(cv, 0, 0, src.width, src.height); }
+    prog_(.6, 'Encoding…');
+    const blob = await IMGX.encode(src, t, q);
+    await saveFile(blob, `typeshift-${slug()}.${IMGX.ext(t)}`);
+  } finally { forceOpaque = false; render(curT); }
+}
 
 /* ================================================================ modal */
 let cancelled = false, modalGo = null;

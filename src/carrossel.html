@@ -290,9 +290,12 @@ select{width:100%;background:var(--bg);border:1px solid var(--line);border-radiu
 
     <section class="sec" id="exportSec">
       <h2>Export</h2>
-      <div class="seg" data-bind="exp.format" data-options="mp4|MP4 video,gif|GIF"></div>
+      <div class="seg" data-bind="exp.format" data-options="mp4|MP4,gif|GIF,img|Image"></div>
       <div class="row two"><label for="eW">Width</label><select id="eW" data-bind="exp.width" data-num></select></div>
-      <div class="field"><span class="lbl">Frame rate</span><div class="seg" id="fpsSeg" data-bind="exp.fps" data-num></div></div>
+      <div class="field" data-when="exp.format=mp4|gif"><span class="lbl">Frame rate</span><div class="seg" id="fpsSeg" data-bind="exp.fps" data-num></div></div>
+      <div class="field" data-when="exp.format=img"><span class="lbl">Image format</span><div class="seg" data-bind="exp.img" data-options="png|PNG,webp|WebP,jpeg|JPEG"></div></div>
+      <div class="row" id="eIqRow" data-when="exp.format=img"><label for="eIq">Image quality</label><input type="range" id="eIq" data-bind="exp.iq" min="40" max="100" step="1"><output data-unit="%"></output></div>
+      <p class="note" id="eIh" data-when="exp.format=img"></p>
       <div class="row" data-when="exp.format=mp4"><label for="eRep">Repeat</label><input type="range" id="eRep" data-bind="exp.repeat" min="1" max="6" step="1"><output data-unit="×"></output></div>
       <div class="row" data-when="exp.format=gif"><label for="eQ">Quality</label><input type="range" id="eQ" data-bind="exp.quality" min="5" max="100" step="5"><output data-unit="%"></output></div>
       <p class="note" id="eQh" data-when="exp.format=gif"></p>
@@ -438,7 +441,7 @@ const DEFAULT={
   card:{shape:'4:5',size:52,radius:3,gap:4,shadow:45,outline:false},
   motion:{sec:2,ease:'smooth',hold:60,tilt:0,reverse:false,crowd:34,hole:0},
   bg:{on:true,type:'solid',c1:'#0a0a0b',c2:'#26283a',angle:135,grain:0,blur:0,dim:20},
-  exp:{format:'mp4',width:1080,fps:30,repeat:1,dither:true,quality:80},
+  exp:{format:'mp4',width:1080,fps:30,repeat:1,dither:true,quality:80,img:'png',iq:90},
 };
 let S=structuredClone(DEFAULT);
 let images=[], bgImage=null;
@@ -836,7 +839,7 @@ function bindAll(){
   document.querySelectorAll('[data-hex]').forEach(el=>el.addEventListener('change',()=>{let v=el.value.trim();if(!v.startsWith('#'))v='#'+v;if(/^#[0-9a-f]{6}$/i.test(v)){set(el.dataset.hex,v.toLowerCase());changed(el.dataset.hex)}else el.value=get(el.dataset.hex)}));
 }
 function changed(path){
-  if(path==='exp.format'){if(!fpsOptions().includes(S.exp.fps))S.exp.fps=S.exp.format==='gif'?20:30;if(S.exp.format==='gif'&&S.exp.width>1080)S.exp.width=720;buildExportSelects()}
+  if(path==='exp.format'){if(S.exp.format!=='img'&&!fpsOptions().includes(S.exp.fps))S.exp.fps=S.exp.format==='gif'?20:30;if(S.exp.format==='gif'&&S.exp.width>1080)S.exp.width=720;buildExportSelects()}
   if(path==='aspect')sizeView();
   syncControls();persist();queueThumbs();if(frId)drawFramer();
 }
@@ -968,12 +971,16 @@ function setPlaying(v){playing=v;$('#playBtn').setAttribute('aria-label',v?'Paus
 
 /* ============================== Export ============================== */
 function fpsOptions(){return S.exp.format==='gif'?[10,15,20,25]:[24,30,60]}
-function widthOptions(){return S.exp.format==='gif'?[320,480,640,800,1080]:[720,1080,1440,2160]}
+const IMG_W=[1080,1440,2160,3840];
+function widthOptions(){return S.exp.format==='gif'?[320,480,640,800,1080]:S.exp.format==='img'?IMG_W:[720,1080,1440,2160]}
 function buildExportSelects(){const sel=$('#eW');sel.innerHTML='';widthOptions().forEach(w=>{const o=document.createElement('option');o.value=w;o.textContent=w+' px wide';sel.appendChild(o)});
-  if(!widthOptions().includes(S.exp.width))S.exp.width=S.exp.format==='gif'?640:1080;
+  if(!widthOptions().includes(S.exp.width))S.exp.width=S.exp.format==='gif'?640:S.exp.format==='img'?2160:1080;
   const seg=$('#fpsSeg');seg.dataset.options=fpsOptions().map(f=>`${f}|${f} fps`).join(',');buildSeg(seg)}
 function expDims(){const w=S.exp.width;let h=Math.round(w/ratio(S.aspect));h+=h%2;return{w,h}}
-function updateExportInfo(){const {w,h}=expDims(),fps=S.exp.fps,fr=Math.round(loopLen()*fps),reps=S.exp.format==='mp4'?S.exp.repeat:1;
+function updateExportInfo(){
+  if(S.exp.format==='img'){const {w,h}=expDims();$('#expInfo').textContent=`${w}×${h} · still frame at the current playhead`;$('#eIqRow').hidden=S.exp.img==='png';
+    $('#eIh').textContent=IMGX.hint(S.exp.img)+(S.exp.img==='jpeg'&&!S.bg.on?' Background is off, so it is filled with black.':'');$('#exportTopFmt').textContent=IMGX.label(S.exp.img).toUpperCase();$('#dims').textContent=`${S.aspect} · ${w}×${h}`;return}
+  const {w,h}=expDims(),fps=S.exp.fps,fr=Math.round(loopLen()*fps),reps=S.exp.format==='mp4'?S.exp.repeat:1;
   $('#expInfo').textContent=`${w}×${h} · ${fr*reps} frames · ${(loopLen()*reps).toFixed(1)} s${S.exp.format==='gif'?' · loops forever':''}`;
   $('#eQh').textContent=GIFQ.describe(S.exp.quality)+'. Lower quality makes a smaller file.';
   $('#exportTopFmt').textContent=S.exp.format.toUpperCase();$('#dims').textContent=`${S.aspect} · ${w}×${h}`}
@@ -989,11 +996,11 @@ const ov={show(){$('#overlay').hidden=false;$('#ovResult').innerHTML='';$('#ovSa
 const yieldUI=()=>new Promise(r=>setTimeout(r,0));
 async function runExport(){
   if(exporting)return;if(!active().length){ov.show();$('#ovTitle').textContent='Nothing to export';ov.prog(0,'Show at least one image before exporting.');$('#ovCancel').textContent='Close';return}
-  exporting=true;cancelFlag=false;ov.show();$('#ovTitle').textContent=`Rendering ${S.exp.format.toUpperCase()}`;ov.prog(0,'Preparing…');
-  try{const res=S.exp.format==='gif'?await exportGif():await exportMp4();
+  exporting=true;cancelFlag=false;ov.show();$('#ovTitle').textContent=`Rendering ${S.exp.format==='img'?IMGX.label(S.exp.img):S.exp.format.toUpperCase()}`;ov.prog(0,'Preparing…');
+  try{const res=S.exp.format==='gif'?await exportGif():S.exp.format==='img'?await exportImage():await exportMp4();
     if(!res){ov.hide();return}lastExport=res;
     $('#ovTitle').textContent='Export ready';ov.prog(1,`${res.filename} · ${(res.blob.size/1048576).toFixed(2)} MB`);
-    const url=URL.createObjectURL(res.blob);$('#ovResult').innerHTML=res.kind==='gif'?`<img src="${url}" alt="Exported GIF preview">`:`<video src="${url}" autoplay loop muted playsinline></video>`;
+    const url=URL.createObjectURL(res.blob);$('#ovResult').innerHTML=res.kind!=='video'?`<img src="${url}" alt="Exported preview">`:`<video src="${url}" autoplay loop muted playsinline></video>`;
     $('#ovSave').hidden=false;$('#ovSave').textContent=`Save ${res.ext.toUpperCase()}`;$('#ovCancel').textContent='Close';
     const r=await saveBlob(res.blob,res.filename);
     if(r==='declined')$('#ovStatus').textContent+=' · save declined, press Save to try again';else if(r==='saved')$('#ovStatus').textContent+=' · saved';else if(r==='large')$('#ovStatus').textContent+=' · too large for this view, try a smaller width';
@@ -1008,6 +1015,12 @@ async function exportGif(){
     getFrame:i=>{renderFrame(ctx,w,h,i/frames);return ctx.getImageData(0,0,w,h).data},onProgress:(f,m)=>ov.prog(f,m),isCancelled:()=>cancelFlag});
   if(!blob)return null;
   return{blob,kind:'gif',ext:'gif',filename:fname('gif')}}
+async function exportImage(){
+  const {w,h}=expDims(),t=['png','webp','jpeg'].includes(S.exp.img)?S.exp.img:'png';
+  const c=document.createElement('canvas');c.width=w;c.height=h;const ctx=c.getContext('2d');
+  renderFrame(ctx,w,h,progress,{forceOpaque:t==='jpeg'});ov.prog(.6,'Encoding…');
+  const blob=await IMGX.encode(c,t,S.exp.iq||90,'#000000');
+  return{blob,kind:'img',ext:IMGX.ext(t),filename:fname(IMGX.ext(t))}}
 async function exportMp4(){
   const {w,h}=expDims(),fps=S.exp.fps,per=Math.round(loopLen()*fps),frames=per*S.exp.repeat;
   const c=document.createElement('canvas');c.width=w;c.height=h;const ctx=c.getContext('2d');

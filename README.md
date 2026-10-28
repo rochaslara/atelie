@@ -13,4 +13,4 @@ Shortcuts: Alt + 1–4 switches tools; `#type`, `#carousel`, `#dots` and `#gradi
 
 ## Editing
 
-Each tool's source lives in `src/` (`typeshift.html`, `carrossel.html`, `dotwash.html`, `loopwash.html`, plus `shell.html` for the top bar and `gifq.js`, the GIF encoder with the Quality setting that all four tools share). After changing one, run `python3 build.py` to regenerate `index.html`.
+Each tool's source lives in `src/` (`typeshift.html`, `carrossel.html`, `dotwash.html`, `loopwash.html`, plus `shell.html` for the top bar and `gifq.js`, the GIF encoder with the Quality setting and the PNG/WebP/JPEG image export that all four tools share). After changing one, run `python3 build.py` to regenerate `index.html`.

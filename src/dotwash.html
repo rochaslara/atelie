@@ -280,7 +280,7 @@ select:focus,textarea:focus{border-color:var(--accent);outline:none}
 
     <div class="group">
       <div class="section-h"><h2>Export</h2></div>
-      <div class="seg" id="formatSeg"><button data-v="gif">GIF</button><button data-v="mp4">MP4</button><button data-v="png">PNG still</button></div>
+      <div class="seg" id="formatSeg"><button data-v="gif">GIF</button><button data-v="mp4">MP4</button><button data-v="png">Image</button></div>
       <div class="grid3">
         <div class="field"><label for="aspect">Ratio</label>
           <select id="aspect"><option>1:1</option><option>4:5</option><option>16:9</option><option>9:16</option><option>3:2</option></select></div>
@@ -288,6 +288,11 @@ select:focus,textarea:focus{border-color:var(--accent);outline:none}
         <div class="field" id="fpsField"><label for="fps">Frame rate</label><select id="fps"></select></div>
       </div>
       <div class="ctl" id="gifQCtl" hidden><div class="ctl-top"><label for="gifQ">GIF quality</label><output id="gifQo"></output></div><input type="range" id="gifQ" min="5" max="100" step="5"><p class="hint" id="gifQh"></p></div>
+      <div class="imgctl" id="imgCtl" hidden>
+        <div class="seg" id="imgTypeSeg" aria-label="Image format"><button data-v="png">PNG</button><button data-v="webp">WebP</button><button data-v="jpeg">JPEG</button></div>
+        <div class="ctl" id="imgQCtl"><div class="ctl-top"><label for="imgQ">Image quality</label><output id="imgQo"></output></div><input type="range" id="imgQ" min="40" max="100" step="1"></div>
+        <p class="hint" id="imgHint"></p>
+      </div>
       <div class="summary" id="summary"></div>
       <button class="primary" id="exportBtn">Export GIF</button>
       <div class="progress" id="progress" hidden><i id="progressBar"></i></div>
@@ -866,7 +871,7 @@ function syncAll(){
   $('fpsField').hidden=!eo.fps;
   if(eo.fps) fillSelect($('fps'),eo.fps,state['fps_'+state.format],v=>v+' fps');
   $('exportBtn').textContent={gif:'Export GIF',mp4:'Export MP4',png:'Export PNG'}[state.format];
-  syncGifQ();
+  syncGifQ(); syncImg();
   buildColors(); fitView(); updateSummary(); scheduleThumbs(); persist();
 }
 function applyLook(p){ LOOK_KEYS.forEach(k=>{ if(p[k]!==undefined) state[k]=p[k]; }); if(state.fontWeight==null) state.fontWeight=400; if(state.source==='text') ensureFont(state.font,state.fontWeight).then(()=>fontsVersion++); syncAll(); }
@@ -954,11 +959,23 @@ async function encodeMp4(look,w,h,fps){
   return {blob:new Blob(parts,{type:mime.split(';')[0]}),ext};
 }
 
-async function encodePng(look,w,h){
-  offR.render(look,phase,w,h);
-  const blob=await new Promise(r=>offR.c.toBlob(r,'image/png'));
-  if(!blob) throw new Error('The PNG couldn\'t be created. Try a smaller size.');
-  return {blob,ext:'png'};
+const IMG_FMT='png';
+const IMG_FILL=()=>state.bg||'#ffffff';
+function syncImg(){
+  const seg=$('imgTypeSeg'), qi=$('imgQ');
+  if(!qi.dataset.wired){ qi.dataset.wired='1';
+    seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{ state.imgType=b.dataset.v; syncImg(); persist(); updateSummary(); }));
+    qi.addEventListener('input',()=>{ state.imgQuality=+qi.value; syncImg(); persist(); }); }
+  const t=['png','webp','jpeg'].includes(state.imgType)?state.imgType:'png', q=state.imgQuality>=40?state.imgQuality:90, isImg=state.format===IMG_FMT;
+  seg.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v===t)));
+  qi.value=q; qi.style.setProperty('--p',((q-40)/60*100)+'%'); $('imgQo').textContent=q+'%';
+  $('imgQCtl').hidden=t==='png'; $('imgHint').textContent=IMGX.hint(t); $('imgCtl').hidden=!isImg;
+  if(isImg) $('exportBtn').textContent='Export '+IMGX.label(t);
+}
+async function encodeImage(look,w,h,render){
+  const t=['png','webp','jpeg'].includes(state.imgType)?state.imgType:'png';
+  render(); const blob=await IMGX.encode(offR.c,t,state.imgQuality>=40?state.imgQuality:90,IMG_FILL());
+  return {blob,ext:IMGX.ext(t)};
 }
 
 async function offerSave(){
@@ -985,7 +1002,7 @@ $('exportBtn').addEventListener('click',async()=>{
   const {w,h}=exportDims(); const fps=curFps(); const t0=performance.now();
   setProgress(0);
   try{
-    const r = state.format==='gif' ? await encodeGif(look,w,h,fps) : state.format==='mp4' ? await encodeMp4(look,w,h,fps) : await encodePng(look,w,h);
+    const r = state.format==='gif' ? await encodeGif(look,w,h,fps) : state.format==='mp4' ? await encodeMp4(look,w,h,fps) : await encodeImage(look,w,h,()=>offR.render(look,phase,w,h));
     const name=`dotwash-${look.motion}-${look.shape}-${w}x${h}.${r.ext}`;
     lastResult={blob:r.blob,name};
     const url=URL.createObjectURL(r.blob);

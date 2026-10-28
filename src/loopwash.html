@@ -161,6 +161,7 @@ select:focus{border-color:var(--accent);outline:none}
 .save-name input{flex:1;min-width:0;background:var(--sunk);border:1px solid transparent;border-radius:8px;padding:6px 9px;font-size:13px}
 .save-name input:focus{border-color:var(--accent);outline:none}
 @media (prefers-reduced-motion:reduce){.preset canvas{transition:none}}
+.imgctl{display:grid;gap:10px}
 </style>
 </head>
 <body>
@@ -249,7 +250,7 @@ select:focus{border-color:var(--accent);outline:none}
 
     <div class="group">
       <div class="section-h"><h2>Export</h2></div>
-      <div class="seg" id="formatSeg"><button data-v="mp4">MP4</button><button data-v="gif">GIF</button></div>
+      <div class="seg" id="formatSeg"><button data-v="mp4">MP4</button><button data-v="gif">GIF</button><button data-v="img">Image</button></div>
       <div class="grid3">
         <div class="field"><label for="aspect">Ratio</label>
           <select id="aspect"><option>16:9</option><option>9:16</option><option>1:1</option><option>4:5</option><option>4:3</option></select></div>
@@ -259,6 +260,11 @@ select:focus{border-color:var(--accent);outline:none}
       <div class="field" id="loopsField"><label for="loops">Loops in file</label>
         <select id="loops"><option value="1">1 loop (set your player to repeat)</option><option value="2">2 loops</option><option value="3">3 loops</option><option value="5">5 loops</option><option value="10">10 loops</option></select></div>
       <div class="ctl" id="gifQCtl" hidden><div class="ctl-top"><label for="gifQ">GIF quality</label><output id="gifQo"></output></div><input type="range" id="gifQ" min="5" max="100" step="5"><p class="hint" id="gifQh"></p></div>
+      <div class="imgctl" id="imgCtl" hidden>
+        <div class="seg" id="imgTypeSeg" aria-label="Image format"><button data-v="png">PNG</button><button data-v="webp">WebP</button><button data-v="jpeg">JPEG</button></div>
+        <div class="ctl" id="imgQCtl"><div class="ctl-top"><label for="imgQ">Image quality</label><output id="imgQo"></output></div><input type="range" id="imgQ" min="40" max="100" step="1"></div>
+        <p class="hint" id="imgHint"></p>
+      </div>
       <div class="summary" id="summary"></div>
       <button class="primary" id="exportBtn">Export MP4</button>
       <div class="progress" id="progress" hidden><i id="progressBar"></i></div>
@@ -357,6 +363,7 @@ const CTL_NEED = {angle:'angle',cx:'center',cy:'center',soft:'soft',elements:'el
 const EXPORT_OPTS = {
   mp4:{sizes:[1280,1920,2560,3840], size:1920, fps:[24,25,30,60], f:30},
   gif:{sizes:[320,480,640,800], size:480, fps:[10,20,25,50], f:20},
+  img:{sizes:[1080,1920,2560,3840], size:1920, fps:null},
 };
 
 /* ---------- State ---------- */
@@ -364,7 +371,7 @@ const store = {
   get(k){ try{ return JSON.parse(localStorage.getItem(k)); }catch(e){ return null; } },
   set(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
 };
-const defaults = Object.assign({}, LOOK_DEFAULTS, BUILTIN[0], {customSvg:null, customName:'', format:'mp4', aspect:'16:9', sizeMp4:1920, sizeGif:480, fpsMp4:30, fpsGif:20, loops:1});
+const defaults = Object.assign({}, LOOK_DEFAULTS, BUILTIN[0], {customSvg:null, customName:'', format:'mp4', aspect:'16:9', sizeMp4:1920, sizeGif:480, sizeImg:1920, imgType:'png', imgQuality:90, fpsMp4:30, fpsGif:20, loops:1});
 delete defaults.name;
 const state = Object.assign({}, defaults, store.get('loopwash.state') || {});
 state.colors = (state.colors||defaults.colors).filter(validHex).slice(0,6);
@@ -728,7 +735,7 @@ catch(e){ $('stage').innerHTML = '<p class="hint" style="padding:40px;text-align
 /* ---------- Dimensions ---------- */
 function ratio(){ const [a,b]=state.aspect.split(':').map(Number); return a/b; }
 function exportDims(){
-  const L = state.format==='gif'?state.sizeGif:state.sizeMp4; const r=ratio(); const even=v=>Math.max(2,Math.round(v/2)*2);
+  const L = state.format==='gif'?state.sizeGif:state.format==='img'?(state.sizeImg||1920):state.sizeMp4; const r=ratio(); const even=v=>Math.max(2,Math.round(v/2)*2);
   return r>=1 ? {w:even(L),h:even(L/r)} : {w:even(L*r),h:even(L)};
 }
 const curFps = () => state.format==='gif'?state.fpsGif:state.fpsMp4;
@@ -901,7 +908,7 @@ function segBind(id, key, parse){
 segBind('mirrorSeg','mirror',v=>v==='1');
 segBind('formatSeg','format',v=>v);
 $('aspect').addEventListener('change',e=>{ state.aspect=e.target.value; syncAll(); });
-$('size').addEventListener('change',e=>{ state[state.format==='gif'?'sizeGif':'sizeMp4']=+e.target.value; persist(); fitView(); updateSummary(); });
+$('size').addEventListener('change',e=>{ state[state.format==='gif'?'sizeGif':state.format==='img'?'sizeImg':'sizeMp4']=+e.target.value; persist(); fitView(); updateSummary(); });
 $('fps').addEventListener('change',e=>{ state[state.format==='gif'?'fpsGif':'fpsMp4']=+e.target.value; persist(); updateSummary(); });
 $('loops').addEventListener('change',e=>{ state.loops=+e.target.value; persist(); updateSummary(); });
 
@@ -922,11 +929,11 @@ function syncAll(){
   $('formatSeg').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v===state.format)));
   const eo=EXPORT_OPTS[state.format]; const gif=state.format==='gif';
   $('aspect').value=state.aspect;
-  fillSelect($('size'),eo.sizes,gif?state.sizeGif:state.sizeMp4,v=>v+' px');
-  fillSelect($('fps'),eo.fps,gif?state.fpsGif:state.fpsMp4,v=>v+' fps');
-  $('loops').value=String(state.loops); $('loopsField').hidden=gif;
+  fillSelect($('size'),eo.sizes,gif?state.sizeGif:state.format==='img'?(state.sizeImg||1920):state.sizeMp4,v=>v+' px');
+  if(eo.fps) fillSelect($('fps'),eo.fps,gif?state.fpsGif:state.fpsMp4,v=>v+' fps'); $('fps').closest('.field').hidden=!eo.fps;
+  $('loops').value=String(state.loops); $('loopsField').hidden=state.format!=='mp4';
   $('exportBtn').textContent= gif?'Export GIF':'Export MP4';
-  syncGifQ();
+  syncGifQ(); syncImg();
   buildColors(); fitView(); updateSummary(); scheduleThumbs(); persist();
 }
 function applyLook(p){
@@ -971,6 +978,7 @@ segBind('ringModeSeg','ringMode',v=>v);
 })();
 
 function updateSummary(){
+  if(state.format==='img'){ const d=exportDims(); $('summary').textContent=`${d.w} × ${d.h} · still frame at the current loop position`; $('metaDims').textContent=`${d.w} × ${d.h}`; return; }
   const d=exportDims(), f=curFps(); const frames=Math.round(state.duration*f);
   const secs=frames/f; const loops=state.format==='gif'?1:state.loops;
   let line=`${d.w} × ${d.h} · ${frames*loops} frames · ${(secs*loops).toFixed(1)} s`;
@@ -1004,6 +1012,24 @@ function readFrame(gl,w,h,buf){ gl.readPixels(0,0,w,h,gl.RGBA,gl.UNSIGNED_BYTE,b
 function syncGifQ(){ const i=$('gifQ'); if(!i.dataset.wired){ i.dataset.wired='1'; i.addEventListener('input',()=>{ state.gifQuality=+i.value; syncGifQ(); persist(); }); }
   const q=state.gifQuality>=5?state.gifQuality:80; i.value=q; i.style.setProperty('--p',((q-5)/95*100)+'%'); $('gifQo').textContent=q+'%';
   $('gifQh').textContent=GIFQ.describe(q)+'. Lower quality makes a smaller file.'; $('gifQCtl').hidden=state.format!=='gif'; }
+const IMG_FMT='img';
+const IMG_FILL=()=>'#000000';
+function syncImg(){
+  const seg=$('imgTypeSeg'), qi=$('imgQ');
+  if(!qi.dataset.wired){ qi.dataset.wired='1';
+    seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{ state.imgType=b.dataset.v; syncImg(); persist(); updateSummary(); }));
+    qi.addEventListener('input',()=>{ state.imgQuality=+qi.value; syncImg(); persist(); }); }
+  const t=['png','webp','jpeg'].includes(state.imgType)?state.imgType:'png', q=state.imgQuality>=40?state.imgQuality:90, isImg=state.format===IMG_FMT;
+  seg.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v===t)));
+  qi.value=q; qi.style.setProperty('--p',((q-40)/60*100)+'%'); $('imgQo').textContent=q+'%';
+  $('imgQCtl').hidden=t==='png'; $('imgHint').textContent=IMGX.hint(t); $('imgCtl').hidden=!isImg;
+  if(isImg) $('exportBtn').textContent='Export '+IMGX.label(t);
+}
+async function encodeImage(look,w,h,render){
+  const t=['png','webp','jpeg'].includes(state.imgType)?state.imgType:'png';
+  render(); const blob=await IMGX.encode(offR.c,t,state.imgQuality>=40?state.imgQuality:90,IMG_FILL());
+  return {blob,ext:IMGX.ext(t)};
+}
 async function encodeGif(look,w,h,fps){
   const frames=Math.round(look.duration*fps); const gl=offR.gl; const buf=new Uint8Array(w*h*4);
   const blob=await GIFQ.encode({w,h,n:frames,delayCs:100/fps,quality:state.gifQuality>=5?state.gifQuality:80,dither:true,flipY:true,paletteFrames:8,
@@ -1083,12 +1109,12 @@ $('exportBtn').addEventListener('click',async()=>{
   const {w,h}=exportDims(); const fps=curFps(); const t0=performance.now();
   setProgress(0);
   try{
-    const r = state.format==='gif' ? await encodeGif(look,w,h,fps) : await encodeMp4(look,w,h,fps,state.loops);
+    const r = state.format==='gif' ? await encodeGif(look,w,h,fps) : state.format==='img' ? await encodeImage(look,w,h,()=>offR.render(look,phase,w,h,0)) : await encodeMp4(look,w,h,fps,state.loops);
     const name=`loopwash-${look.style}-${w}x${h}.${r.ext}`;
     lastResult={blob:r.blob,name};
     const url=URL.createObjectURL(r.blob);
     const th=$('resultThumb'); th.innerHTML='';
-    const el = r.ext==='gif' ? Object.assign(document.createElement('img'),{src:url,alt:'Exported GIF'}) : Object.assign(document.createElement('video'),{src:url,muted:true,loop:true,autoplay:true,playsInline:true});
+    const el = (r.ext!=='mp4'&&r.ext!=='webm') ? Object.assign(document.createElement('img'),{src:url,alt:'Exported '+r.ext.toUpperCase()}) : Object.assign(document.createElement('video'),{src:url,muted:true,loop:true,autoplay:true,playsInline:true});
     el.className='thumb'; th.append(el);
     $('resultName').textContent=name;
     const mb=r.blob.size/1e6; $('resultSize').textContent=(mb<1?(r.blob.size/1e3).toFixed(0)+' KB':mb.toFixed(1)+' MB')+` · ${((performance.now()-t0)/1000).toFixed(1)} s to encode`;

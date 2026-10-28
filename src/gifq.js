@@ -191,3 +191,32 @@ const GIFQ = (() => {
   }
   return { encode, describe, settings };
 })();
+
+/* IMGX — still-image export (PNG, WebP, JPEG) shared by every Ateliê tool.
+   encode() must be called right after the frame is drawn (WebGL canvases are read in the same task). */
+const IMGX = (() => {
+  const LABEL = { png:'PNG', webp:'WebP', jpeg:'JPEG' };
+  const HINT = {
+    png:'Lossless and keeps transparency. Largest file.',
+    webp:'Usually the smallest file, and keeps transparency.',
+    jpeg:'Opens everywhere. No transparency: see-through areas are filled.'
+  };
+  const label = t => LABEL[t] || 'PNG';
+  const ext = t => t === 'jpeg' ? 'jpg' : (LABEL[t] ? t : 'png');
+  const hint = t => HINT[t] || HINT.png;
+  function encode(src, type, quality = 90, fill = '#ffffff'){
+    type = LABEL[type] ? type : 'png';
+    let c = src;
+    if (type === 'jpeg') {                       // JPEG has no alpha: flatten onto a colour first
+      c = document.createElement('canvas'); c.width = src.width; c.height = src.height;
+      const x = c.getContext('2d'); x.fillStyle = fill; x.fillRect(0, 0, c.width, c.height); x.drawImage(src, 0, 0);
+    }
+    const mime = 'image/' + type;
+    return new Promise((res, rej) => c.toBlob(b => {
+      if (!b) return rej(new Error(`The ${label(type)} couldn't be created. Try a smaller size.`));
+      if (b.type !== mime) return rej(new Error(`This browser can't save ${label(type)} files. Choose PNG or JPEG.`));
+      res(b);
+    }, mime, type === 'png' ? undefined : Math.max(.05, Math.min(1, quality / 100))));
+  }
+  return { encode, label, ext, hint };
+})();
