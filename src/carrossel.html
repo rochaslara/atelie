@@ -263,6 +263,7 @@ select{width:100%;background:var(--bg);border:1px solid var(--line);border-radiu
       <div class="field" data-when="kind=step"><span class="lbl">Easing</span><div class="seg" data-bind="motion.ease" data-options="linear|Linear,smooth|Smooth,snappy|Snappy,back|Bounce"></div></div>
       <div class="row" data-when="kind=step"><label for="mHold">Pause</label><input type="range" id="mHold" data-bind="motion.hold" min="0" max="85" step="1"><output data-unit="%"></output></div>
       <div class="row" data-when="preset=depthField"><label for="mCrowd">Frames</label><input type="range" id="mCrowd" data-bind="motion.crowd" min="10" max="160" step="1"><output data-unit=""></output></div>
+      <div class="row" data-when="preset=depthField"><label for="mHole">Empty center</label><input type="range" id="mHole" data-bind="motion.hole" min="0" max="85" step="1"><output data-unit="%"></output></div>
       <div class="row"><label for="mTilt">Tilt</label><input type="range" id="mTilt" data-bind="motion.tilt" min="-30" max="30" step="1"><output data-unit="°"></output></div>
       <div class="check"><label for="mRev" class="lbl">Reverse direction</label><span class="switch"><input type="checkbox" id="mRev" data-bind="motion.reverse"><i></i></span></div>
       <p class="note mono" id="motionNote"></p>
@@ -467,7 +468,7 @@ void main(){
 const DEFAULT={
   preset:'helix', aspect:'4:3', cat:'all',
   card:{shape:'4:5',size:52,radius:3,gap:4,shadow:45,outline:false},
-  motion:{sec:2,ease:'smooth',hold:60,tilt:0,reverse:false,crowd:34},
+  motion:{sec:2,ease:'smooth',hold:60,tilt:0,reverse:false,crowd:34,hole:0},
   bg:{on:true,type:'solid',c1:'#0a0a0b',c2:'#26283a',angle:135,grain:0,blur:0,dim:20},
   exp:{format:'mp4',width:1080,fps:30,repeat:1,dither:true},
 };
@@ -546,9 +547,12 @@ const TEMPLATES=[
   for(let j=0;j<M;j++){const y=1-2*(j+.5)/M,r=Math.sqrt(1-y*y),ph=j*2.39996,x=Math.cos(ph)*r,z=Math.sin(ph)*r;
    o.push({it:c.it(j),w:cw,h:ch,x:R*x,y:R*y,z:R*z,ry:Math.atan2(x,z),rx:-Math.asin(y),g,noShadow:1})}return o}},
 {id:'depthField',name:'Depth Field',cat:'3d',kind:'flow',size:50,
- f(c){const o=[],K=Math.round(clamp(S.motion.crowd||34,10,160)),L=9,spd=Math.max(1,Math.round(c.n/3));
+ f(c){const o=[],K=Math.round(clamp(S.motion.crowd||34,10,160)),L=9,spd=Math.max(1,Math.round(c.n/3)),g=clamp((S.motion.hole||0)/100,0,.9);
   for(let j=0;j<K;j++){const z=-L+mod(seed(j+7)*L+c.p*L*spd,L)+.8,spread=(CAMD-z)/CAMD;
-   o.push({it:c.it(j),w:c.w*.32*(.7+seed(j+3)*.6),h:c.h*.32*(.7+seed(j+3)*.6),x:(seed(j)*2-1)*c.A*.85*spread,y:(seed(j+99)*2-1)*.8*spread,z,
+   const sz=.32*(.7+seed(j+3)*.6),w=c.w*sz,h=c.h*sz,X=c.A*.85*spread,Y=.8*spread;let u=seed(j)*2-1,v=seed(j+99)*2-1;
+   if(g>0){const r=Math.hypot(u,v),th=r>1e-4?Math.atan2(v,u):seed(j+5)*TAU,cs=Math.cos(th),sn=Math.sin(th);
+    const m=Math.abs(cs)*w/2/X+Math.abs(sn)*h/2/Y,r2=(1-g)*r+g+m*Math.min(1,g*12);u=cs*r2;v=sn*r2}
+   o.push({it:c.it(j),w,h,x:u*X,y:v*Y,z,
     op:sstep(-L+.8,-L+3,z)*(1-sstep(.9,1.9,z)),noShadow:1})}return o}},
 {id:'zoomThrough',name:'Zoom Through',cat:'3d',kind:'step',size:50,
  f(c){const o=[],gap=2.1;each(c,-1,5,(k,it)=>{o.push(card(c,it,{z:-k*gap,op:sstep(-.8,-.2,k)*(1-sstep(3.3,4.3,k)),dim:clamp(k*.12,0,.5)}))});return o}},
