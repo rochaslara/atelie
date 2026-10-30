@@ -343,6 +343,11 @@ in vec2 vL;in vec2 vF;in vec2 vW;out vec4 o;
 uniform sampler2D uTex;uniform int uMode;uniform vec2 uSize,uPan;uniform vec3 uColor;
 uniform float uR,uOp,uDim,uIA,uCA,uZoom,uUnm,uOutline,uBlur,uShadow;
 uniform vec4 uMask;uniform float uMaskR;uniform int uMaskMode;
+// Reads the photo as 8 samples spread over the pixel's footprint (rotated grid), each from a finer mip level, then averages.
+// This is supersampling on the texture itself: shrunken photos and small type come out smooth instead of crunchy.
+vec4 smoothTex(vec2 uv){vec2 dx=dFdx(uv),dy=dFdy(uv),gx=dx*.5,gy=dy*.5;vec4 s=vec4(0.0);
+  const vec2 P[8]=vec2[8](vec2(-.375,-.125),vec2(.125,-.375),vec2(.375,.125),vec2(-.125,.375),vec2(-.25,.25),vec2(.25,-.25),vec2(0.,0.),vec2(.0,.5));
+  for(int i=0;i<8;i++)s+=textureGrad(uTex,uv+P[i].x*dx+P[i].y*dy,gx,gy);return s/8.0;}
 float sdb(vec2 p,vec2 b,float r){vec2 q=abs(p)-b+r;return length(max(q,0.0))+min(max(q.x,q.y),0.0)-r;}
 void main(){
   float d=sdb(vL,uSize*0.5,uR);float a;vec3 c=vec3(0.0);
@@ -353,7 +358,7 @@ void main(){
     else{
       vec2 uv=vF-0.5;vec2 vis=uIA>uCA?vec2(uCA/uIA,1.0):vec2(1.0,uIA/uCA);vis/=uZoom;uv*=vis;uv+=uPan*(1.0-vis)*0.5;
       if(!gl_FrontFacing&&uUnm>0.5)uv.x=-uv.x;
-      uv+=0.5;uv.y=1.0-uv.y;vec4 t=texture(uTex,uv);c=t.rgb;a*=t.a;
+      uv+=0.5;uv.y=1.0-uv.y;vec4 t=smoothTex(uv);c=t.rgb;a*=t.a;
     }
     if(!gl_FrontFacing&&uUnm<0.5)c*=0.5;
     c*=1.0-uDim;
@@ -379,16 +384,23 @@ void main(){
     if(t&&it.anim&&t.anim===it.anim){gl.bindTexture(gl.TEXTURE_2D,t.tex);gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL,false);gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,false);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,it.src);gl.generateMipmap(gl.TEXTURE_2D);t.src=it.src;return t}
     if(t)gl.deleteTexture(t.tex);
     let src=it.src,w=it.w,h=it.h;const lim=Math.min(2048,maxTex);
-    if(Math.max(w,h)>lim){const k=lim/Math.max(w,h);const c=document.createElement('canvas');c.width=Math.round(w*k);c.height=Math.round(h*k);c.getContext('2d').drawImage(src,0,0,c.width,c.height);src=c}
+    if(Math.max(w,h)>lim){const k=lim/Math.max(w,h);const c=document.createElement('canvas');c.width=Math.round(w*k);c.height=Math.round(h*k);const cx=c.getContext('2d');cx.imageSmoothingEnabled=true;cx.imageSmoothingQuality='high';cx.drawImage(src,0,0,c.width,c.height);src=c;w=c.width;h=c.height}
     const tex=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,tex);
     gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL,false);gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,false);
     gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,src);
-    gl.generateMipmap(gl.TEXTURE_2D);
+    if(it.anim)gl.generateMipmap(gl.TEXTURE_2D);else smoothMips(src,w,h);
     gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
     if(aniso)gl.texParameterf(gl.TEXTURE_2D,aniso.TEXTURE_MAX_ANISOTROPY_EXT,Math.min(8,gl.getParameter(aniso.MAX_TEXTURE_MAX_ANISOTROPY_EXT)));
     t={tex,src:it.src,ia:it.w/it.h,anim:it.anim||null};texCache.set(it.id,t);return t;
   }
+  // Each smaller version of the image is made with the browser's high-quality resampling, halving one step at a time.
+  // The GPU's own mipmaps are a plain box average, which leaves small cards looking crunchy.
+  function smoothMips(src,w,h){let cur=src,cw=w,ch=h,lv=0;
+    while(cw>1||ch>1){const nw=Math.max(1,cw>>1),nh=Math.max(1,ch>>1);const c=document.createElement('canvas');c.width=nw;c.height=nh;
+      const x=c.getContext('2d');x.imageSmoothingEnabled=true;x.imageSmoothingQuality='high';x.drawImage(cur,0,0,nw,nh);
+      gl.texImage2D(gl.TEXTURE_2D,++lv,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,c);cur=c;cw=nw;ch=nh}}
+  const maxRB=Math.min(gl.getParameter(gl.MAX_RENDERBUFFER_SIZE),gl.getParameter(gl.MAX_VIEWPORT_DIMS)[0],8192);
   function prune(ids){for(const [id,t] of texCache)if(!ids.has(id)){gl.deleteTexture(t.tex);texCache.delete(id)}}
   function ensure(W,H){if(cv.width<W||cv.height<H){cv.width=Math.max(cv.width,W);cv.height=Math.max(cv.height,H)}}
   function shrink(W,H){if(cv.width>W*1.5||cv.height>H*1.5){cv.width=W;cv.height=H}}
@@ -432,7 +444,7 @@ void main(){
     }
     return cv;
   }
-  return{render,prune,ensure,shrink,canvas:cv};
+  return{render,prune,ensure,shrink,canvas:cv,maxRB};
 })();
 
 /* ============================== State ============================== */
@@ -696,7 +708,7 @@ function buildCtx(p,W,H,tpl){
   const vel=clamp((dv>n/2?0:dv)/(2*eps*n)*(1-S.motion.hold/100)/1.6);
   return{p,n,items,it:v=>items[mod(v,n)],A,sh,big,w,h,g:S.card.gap/100*2*sh,s,sl,k,e,lt:mod(p*n,1),vel,cam:{}};
 }
-function renderFrame(ctx,W,H,p,{forceOpaque=false,preset=S.preset}={}){
+function renderFrame(ctx,W,H,p,{forceOpaque=false,preset=S.preset,ss=1}={}){
   syncAnim(p*loopLen());
   ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,W,H);
   drawBackground(ctx,W,H,forceOpaque);
@@ -705,8 +717,9 @@ function renderFrame(ctx,W,H,p,{forceOpaque=false,preset=S.preset}={}){
   if(!GL){ctx.fillStyle='#fff';ctx.font='14px sans-serif';ctx.fillText('This browser does not support WebGL2.',16,28);return}
   const tpl=TPL[preset]||TEMPLATES[0];const c=buildCtx(p,W,H,tpl);
   let cards=[];try{cards=tpl.f(c)}catch(err){console.error(err)}
-  const cv=GL.render(W,H,cards,c.cam,S.motion.tilt*PI/180);
-  ctx.drawImage(cv,0,cv.height-H,W,H,0,0,W,H);
+  ss=Math.max(1,Math.min(ss,GL.maxRB/Math.max(W,H)));const RW=Math.round(W*ss),RH=Math.round(H*ss);
+  const cv=GL.render(RW,RH,cards,c.cam,S.motion.tilt*PI/180);
+  ctx.save();ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';ctx.drawImage(cv,0,cv.height-RH,RW,RH,0,0,W,H);ctx.restore();
 }
 
 /* ============================== Sample images ============================== */
@@ -1012,13 +1025,13 @@ async function exportGif(){
   const {w,h}=expDims(),fps=S.exp.fps,frames=Math.max(2,Math.round(loopLen()*fps));
   const c=document.createElement('canvas');c.width=w;c.height=h;const ctx=c.getContext('2d',{willReadFrequently:true});
   const blob=await GIFQ.encode({w,h,n:frames,delayCs:100/fps,transparent:!S.bg.on,quality:S.exp.quality,dither:S.exp.dither,
-    getFrame:i=>{renderFrame(ctx,w,h,i/frames);return ctx.getImageData(0,0,w,h).data},onProgress:(f,m)=>ov.prog(f,m),isCancelled:()=>cancelFlag});
+    getFrame:i=>{renderFrame(ctx,w,h,i/frames,{ss:2});return ctx.getImageData(0,0,w,h).data},onProgress:(f,m)=>ov.prog(f,m),isCancelled:()=>cancelFlag});
   if(!blob)return null;
   return{blob,kind:'gif',ext:'gif',filename:fname('gif')}}
 async function exportImage(){
   const {w,h}=expDims(),t=['png','webp','jpeg'].includes(S.exp.img)?S.exp.img:'png';
   const c=document.createElement('canvas');c.width=w;c.height=h;const ctx=c.getContext('2d');
-  renderFrame(ctx,w,h,progress,{forceOpaque:t==='jpeg'});ov.prog(.6,'Encoding…');
+  renderFrame(ctx,w,h,progress,{forceOpaque:t==='jpeg',ss:2});ov.prog(.6,'Encoding…');
   const blob=await IMGX.encode(c,t,S.exp.iq||90,'#000000');
   return{blob,kind:'img',ext:IMGX.ext(t),filename:fname(IMGX.ext(t))}}
 async function exportMp4(){
@@ -1029,7 +1042,7 @@ async function exportMp4(){
     if(config){const muxer=new Mp4Muxer.Muxer({target:new Mp4Muxer.ArrayBufferTarget(),video:{codec:'avc',width:w,height:h,frameRate:fps},fastStart:'in-memory'});
       let err=null;const enc=new VideoEncoder({output:(ch,meta)=>muxer.addVideoChunk(ch,meta),error:e=>{err=e}});enc.configure(config);
       for(let i=0;i<frames;i++){if(cancelFlag||err){enc.close();if(err)throw err;return null}
-        renderFrame(ctx,w,h,(i%per)/per,{forceOpaque:true});const vf=new VideoFrame(c,{timestamp:Math.round(i*1e6/fps),duration:Math.round(1e6/fps)});
+        renderFrame(ctx,w,h,(i%per)/per,{forceOpaque:true,ss:2});const vf=new VideoFrame(c,{timestamp:Math.round(i*1e6/fps),duration:Math.round(1e6/fps)});
         enc.encode(vf,{keyFrame:i%(fps*2)===0});vf.close();while(enc.encodeQueueSize>6)await new Promise(r=>setTimeout(r,4));
         ov.prog((i+1)/frames,`Frame ${i+1} / ${frames}`);if(i%2===0)await yieldUI()}
       await enc.flush();if(err)throw err;muxer.finalize();return{blob:new Blob([muxer.target.buffer],{type:'video/mp4'}),kind:'video',ext:'mp4',filename:fname('mp4')}}}
