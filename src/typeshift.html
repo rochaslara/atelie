@@ -485,7 +485,7 @@ const PRESETS = [
    labels:{a:'Motion amount', s:'Shape size', v:'Softness', w:'Cover text'}, clabels:{bg:'Background', fg:'Type', c1:'Shapes', c2:'Type on shape'},
    el:{count:3, seed:.2, shape:0, mode:0, angle:-90, spd:1, spin:0, szvar:.6}, elems:{title:'Shapes', shape:BLOB_SHAPES, motion:true, count:[1,16,'Count'], seed:true}},
   {id:'btext', name:'Blob Text', word:'HI', isNew:true,
-   desc:'Soft floating blobs, each holding its own text. Write the text and pick the colour of every blob below, and drag blobs on the artwork to place them.',
+   desc:'Soft floating blobs, each holding its own text (up to 12). Write the text and pick the colour of every blob below, and drag blobs on the artwork to place them.',
    text:'BLOB TEXT', font:'Inter Tight', weight:700, italic:false, upper:true,
    layout:'block', align:'center', size:10, tracking:-20, leading:.95, margin:6, grain:.06,
    fx:{a:.5,s:.55,v:.45,w:0}, col:{bg:'#f2ede6', fg:'#161616', c1:'#ff7a59', c2:'#8fb8ff'},
@@ -573,7 +573,7 @@ uniform vec2 uR; uniform float uT; uniform int uP; uniform float uA,uS,uV,uW,uSp
 uniform vec3 uBg,uFg,uC1,uC2; uniform sampler2D uTx,uIm,uSh; uniform float uHi; uniform vec2 uIs;
 uniform vec2 uLn[16]; uniform int uNl; uniform vec4 uBox;
 uniform vec2 uPos; uniform int uPath,uShape,uMode; uniform float uTr,uCnt,uAng,uAmp,uFrq,uSpr,uTw,uSeed,uSpd,uSpin,uSzv,uHue,uMir,uCurv; uniform int uTm,uBgt,uMot,uAxis,uTrn,uLw,uLcn,uGm; uniform vec3 uLcol[5]; uniform float uLang,uLsc,uLsoft,uLwarp,uLmir,uRibs,uRefr,uGlT,uLspd,uLcnt; uniform int uSfill; uniform vec3 uC5; uniform float uThr,uTs,uInv;
-uniform vec4 uBb[8]; uniform vec3 uBc[8]; uniform int uBn,uBst,uBtc; uniform float uBsh;
+uniform vec4 uBb[12]; uniform vec3 uBc[12]; uniform int uBn,uBst,uBtc; uniform float uBsh;
 uniform int uForm,uGrow; uniform float uBsz,uWob,uSwirl,uLop,uDrops,uTfront,uInf,uGspd;
 in vec2 vUv; out vec4 oc;
 #define TAU 6.283185307
@@ -842,7 +842,7 @@ vec3 scene(vec3 BG){
     float aa=1.5/uR.y, mk=uW*.09;
     float sdm=1e3, sdS=1e3, wsum=0.; vec3 csum=vec3(0.); vec3 dom=BG; float dw=-1e9, dR=1.; vec2 dq=vec2(0.);
     vec3 c=BG; vec3 domB=BG; vec3 bsum=vec3(0.);
-    for(int i=0;i<8;i++){ if(i>=uBn) break;
+    for(int i=0;i<12;i++){ if(i>=uBn) break;
       vec4 b=uBb[i]; vec2 d=p-b.xy; float L=length(d); vec2 nd=d/max(L,1e-4); float sd0=b.w*7.31;
       float wob=snoise(vec3(nd*1.05+.42*vec2(cos(ph+sd0),sin(ph+sd0)),sd0))*.65+snoise(vec3(nd*2.1-.3*vec2(sin(ph+sd0),cos(ph+sd0)),sd0+3.1))*.35;
       float R=b.z*(1.+uV*.15*wob);
@@ -1470,7 +1470,7 @@ function bubbleBase(){ const W = cv.width, H = cv.height, m = Math.min(W, H); re
 // Where each blob is at loop time t (0..1). Whole-number frequencies keep the loop seamless.
 function bubbleFrame(t){
   const {W, H, r0} = bubbleBase(), ph = Math.PI*2*t*S.speed, A = Math.min(W, H)*.075*S.a;
-  return (S.bubbles || []).slice(0, 8).map((b, i) => {
+  return (S.bubbles || []).slice(0, 12).map((b, i) => {
     const kx = 1 + (bHash(i,1) > .55 ? 1 : 0), ky = 1 + (bHash(i,2) > .65 ? 1 : 0), p1 = bHash(i,3)*Math.PI*2, p2 = bHash(i,4)*Math.PI*2;
     const r = r0*(b.r || 1)*(1 + .035*S.a*Math.sin(ph*kx + p2));
     return { x: b.x*W + A*Math.sin(ph*kx + p1), y: b.y*H + A*.85*Math.cos(ph*ky + p2), r,
@@ -1492,7 +1492,7 @@ function drawBubbleText(t){
   tx.setTransform(1, 0, 0, 1, 0, 0); tx.textAlign = 'left'; tx.textBaseline = 'alphabetic';
 }
 function bubbleUniforms(t){
-  const fr = bubbleFrame(t), H = cv.height, bb = new Float32Array(32), bc = new Float32Array(24);
+  const fr = bubbleFrame(t), H = cv.height, bb = new Float32Array(48), bc = new Float32Array(36);
   fr.forEach((f, i) => { bb.set([f.x/H, f.y/H, f.r/H, bHash(i,5)], i*4); bc.set(hex(f.b.c || '#ff7a59'), i*3); });
   gl.uniform4fv(U.uBb, bb); gl.uniform3fv(U.uBc, bc); gl.uniform1i(U.uBn, fr.length);
   gl.uniform1i(U.uBst, S.el.bstyle|0); gl.uniform1i(U.uBtc, S.el.btc|0); gl.uniform1f(U.uBsh, S.el.bshadow ?? .35);
@@ -1760,7 +1760,7 @@ function freeSpot(){
   }
   return best;
 }
-const BUB_COLS = ['#ff7a59','#8fb8ff','#f4c95d','#c4a3f2','#7fd8a6','#ff9fc8','#5b6cff','#ffd2a6'];
+const BUB_COLS = ['#ff7a59','#8fb8ff','#f4c95d','#c4a3f2','#7fd8a6','#ff9fc8','#5b6cff','#ffd2a6','#2fb5b0','#e8584f','#9ad14b','#b07cff'];
 function buildBubbleUI(er){
   if (!Array.isArray(S.bubbles) || !S.bubbles.length) S.bubbles = BUB_DEF();
   const list = document.createElement('div'); list.className = 'blist'; er.appendChild(list);
@@ -1780,13 +1780,13 @@ function buildBubbleUI(er){
     list.appendChild(it);
   });
   const row = document.createElement('div'); row.className = 'toggles';
-  const add = document.createElement('button'); add.type = 'button'; add.className = 'btn small'; add.textContent = '+ Add blob'; add.disabled = S.bubbles.length >= 8;
+  const add = document.createElement('button'); add.type = 'button'; add.className = 'btn small'; add.textContent = '+ Add blob'; add.disabled = S.bubbles.length >= 12;
   add.addEventListener('click', () => { const [x, y] = freeSpot(); const used = S.bubbles.map(b => b.c);
-    S.bubbles.push({t:'NEW', c:BUB_COLS.find(c => !used.includes(c)) || BUB_COLS[S.bubbles.length % 8], x, y, r:.9}); buildDynamic(); redraw(); });
+    S.bubbles.push({t:'NEW', c:BUB_COLS.find(c => !used.includes(c)) || BUB_COLS[S.bubbles.length % 12], x, y, r:.9}); buildDynamic(); redraw(); });
   const sh = document.createElement('button'); sh.type = 'button'; sh.className = 'btn small'; sh.textContent = 'Shuffle float';
   sh.addEventListener('click', () => { S.el.seed = Math.round(Math.random()*1000)/1000; redraw(); });
   row.append(add, sh); er.appendChild(row);
-  if (S.bubbles.length >= 8) { const h = document.createElement('p'); h.className = 'hint'; h.textContent = 'Up to 8 blobs.'; er.appendChild(h); }
+  if (S.bubbles.length >= 12) { const h = document.createElement('p'); h.className = 'hint'; h.textContent = 'Up to 12 blobs.'; er.appendChild(h); }
   select(er, 'bstyle', 'Blob style', ['Flat','Soft','Glossy','Glow'], EL);
   slider(er, 'bshadow', 'Shadow', 0, 1, .01, pct, EL);
   select(er, 'btc', 'Text colour', ['Text colour (above)','Auto: black or white per blob'], EL);
