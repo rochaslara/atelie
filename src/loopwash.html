@@ -1087,7 +1087,7 @@ async function offerSave(){
   if(!lastResult) return;
   if(!downloads){
     const a=document.createElement('a'); a.href=URL.createObjectURL(lastResult.blob); a.download=lastResult.name;
-    document.body.append(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),10000);
+    document.body.append(a); a.click(); a.remove(); if(window.__lastDl&&window.__lastDl!==a.href)URL.revokeObjectURL(window.__lastDl); window.__lastDl=a.href;
     setStatus('Downloaded '+lastResult.name,'ok'); return;
   }
   try{

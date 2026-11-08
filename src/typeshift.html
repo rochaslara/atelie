@@ -2089,7 +2089,8 @@ async function saveFile(blob, name){
   }
   if (!inFrame) {
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 4000); toast('Downloading ' + name); return;
+    if (window.__lastDl) URL.revokeObjectURL(window.__lastDl); window.__lastDl = a.href;   // keep the file until the next export, so a slow Save As dialog still finds it
+    toast('Downloading ' + name); return;
   }
   showResult(blob, name);
 }
