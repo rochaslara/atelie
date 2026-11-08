@@ -120,6 +120,8 @@ main{display:grid;grid-template-rows:minmax(0,1fr) auto;min-width:0;min-height:0
 .bitem .bg{grid-column:3;width:28px;height:28px;border-radius:6px;border:1px solid var(--line);background:none;color:var(--mute);cursor:pointer;font-size:14px;line-height:1}
 .bitem .bg[aria-pressed="true"]{color:#1a1a1a;background:#ffe9a8;border-color:#ffd56a;box-shadow:0 0 10px #ffd56a99}
 .bitem .bg:focus-visible,.bitem .bx:focus-visible{outline:2px solid currentColor;outline-offset:1px}
+.bitem .bc2{grid-column:1;grid-row:2;display:flex;flex-direction:column;align-items:center;gap:0;font-size:10px;color:var(--mute);line-height:1}
+.bitem .bc2 input[type=color]{width:24px;height:24px}
 .bitem .bx{width:28px;height:28px;border-radius:6px;border:1px solid var(--line);background:none;color:var(--mute);cursor:pointer;font-size:15px;line-height:1}
 .bitem .bx:hover{color:inherit;border-color:var(--mute)}.bitem .bx:disabled{opacity:.35;cursor:default}
 .subh{font:500 10px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--mute);padding-top:6px;border-top:1px dashed var(--line);margin-top:4px}
@@ -412,7 +414,7 @@ const GB_MODES = ['Two-tone: type changes colour inside the shapes','Knock-out w
 const GMODES = ['Knock-out where it\'s bright','Gradient inside the type','Opposite colour of the gradient','My type colour','Difference (invert)'];
 const BG_TYPES = ['Horizon light bands','Gradient bands','Two-colour stripes','Checkerboard','Dots','Marble','Light bars'];
 const TYPE_MODES = ['Complementary (follows the colours)','My type colour','Inverted','Tonal (darker shade of the scene)'];
-const DEF_EL = {posX:.5, posY:.5, path:1, shape:0, travel:.6, count:4, angle:-30, amp:.5, freq:.4, spread:.5, twist:.4, seed:0, mode:0, spd:1, spin:0, szvar:.6, hue:1, tmode:0, mirror:1, bgt:0, mot:0, axis:0, curv:.7, lw:0, ncol:3, lsc:1, lsoft:.5, lwarp:.2, lmir:1, ribs:0, refr:.5, glt:1, gm:0, lspd:1, lcnt:5, sfill:2, gbm:0, thr:.45, tsoft:.08, inv:0, form:0, bsz:.55, wob:.5, swirl:.6, lop:.92, drops:4, tfront:1, inf:1, grow:1, gspd:1, bstyle:1, btc:1, bts:.8, bsway:.35, bshadow:.35, bsoft:.4, bglow:.7, bglsz:.45, bgpulse:.3};
+const DEF_EL = {posX:.5, posY:.5, path:1, shape:0, travel:.6, count:4, angle:-30, amp:.5, freq:.4, spread:.5, twist:.4, seed:0, mode:0, spd:1, spin:0, szvar:.6, hue:1, tmode:0, mirror:1, bgt:0, mot:0, axis:0, curv:.7, lw:0, ncol:3, lsc:1, lsoft:.5, lwarp:.2, lmir:1, ribs:0, refr:.5, glt:1, gm:0, lspd:1, lcnt:5, sfill:2, gbm:0, thr:.45, tsoft:.08, inv:0, form:0, bsz:.55, wob:.5, swirl:.6, lop:.92, drops:4, tfront:1, inf:1, grow:1, gspd:1, bstyle:1, btc:1, bts:.8, bsway:.35, bshadow:.35, bsoft:.4, bglow:.7, bglsz:.45, bgpulse:.3, bsmode:0, bsat:.2, bsdur:.12, bsstag:.06, bsret:0};
 const CURVE = {count:[1,8,'Ribbons'], curve:true};
 const PRESETS = [
   {id:'plain', name:'Plain', word:'Aa',
@@ -860,10 +862,10 @@ vec3 scene(vec3 BG){
       float sd=L-R; vec2 q=d/R;
       float sdsh=length(p-b.xy-vec2(.012,.03)*b.z*4.)-R;
       vec3 sc=bshade(uBc[i],q,uBst);
-      if(uBglo[i]>.5){ // glow: a halo in the blob's colour, gently pulsing (whole-number frequency keeps the loop seamless)
+      if(uBglo[i]>.001){ // glow (amount ramps in after a selected blob changes colour): a halo in the blob's colour, gently pulsing (whole-number frequency keeps the loop seamless)
         float pu=1.+uBgl.z*.45*sin(ph+b.w*TAU); float gw=R*(.15+1.2*uBgl.y)*(1.+uBgl.z*.18*sin(ph+b.w*TAU));
         float gi=exp(-max(sd,0.)/gw)*smoothstep(-R*.7,R*.15,sd);   // continuous: fades in toward the edge, peaks just outside it
-        glo+=min(uBc[i]*1.15+.12,vec3(1.))*gi*uBgl.x*pu; }
+        glo+=min(uBc[i]*1.15+.12,vec3(1.))*gi*uBgl.x*pu*uBglo[i]; }
       if(mk>.001){
         float h=clamp(.5+.5*(sdm-sd)/mk,0.,1.); sdm=mix(sdm,sd,h)-mk*h*(1.-h);
         float hs=clamp(.5+.5*(sdS-sdsh)/mk,0.,1.); sdS=mix(sdS,sdsh,hs)-mk*hs*(1.-hs);
@@ -885,7 +887,7 @@ vec3 scene(vec3 BG){
     }
     c=1.-(1.-c)*(1.-clamp(glo,0.,1.));   // screen blend: light adds up without washing out
     vec3 tcol=uFg;
-    if(uBtc==1){ float lu=dot(domB,vec3(.299,.587,.114)); tcol=lu>.6? vec3(.09) : vec3(1.); }
+    if(uBtc==1){ float lu=dot(domB,vec3(.299,.587,.114)); tcol=mix(vec3(1.),vec3(.09),smoothstep(.585,.615,lu)); }
     col=mix(c,tcol,txc(uv));
   }
   else if(uP==0){ // SMEAR
@@ -1509,10 +1511,27 @@ function drawBubbleText(t){
   }
   tx.setTransform(1, 0, 0, 1, 0, 0); tx.textAlign = 'left'; tx.textBaseline = 'alphabetic';
 }
+// Selection timeline (fraction of the loop): colour change, then glow, optionally fading back before the loop ends
+const sstep = (a, b, x) => { const k = Math.min(1, Math.max(0, (x - a)/Math.max(1e-4, b - a))); return k*k*(3 - 2*k); };
+function bubbleSel(t){
+  const e = S.el, sel = (S.bubbles || []).slice(0, 12).map(b => !!b.g);
+  if ((e.bsmode|0) === 1) return sel.map(g => g ? {k:1, g:1} : {k:0, g:0});
+  const dur = e.bsdur ?? .12, gl = Math.max(.04, dur*.8), n = sel.filter(Boolean).length;
+  const ret = (e.bsret|0) === 0, end = ret ? .86 : 1;
+  const stag = Math.min(e.bsstag ?? .06, n > 1 ? Math.max(0, (end - .02 - (e.bsat ?? .2) - dur - gl)/(n - 1)) : 1);
+  let o = 0;
+  return sel.map(g => { if (!g) return {k:0, g:0};
+    const s0 = (e.bsat ?? .2) + (o++)*stag; let k = sstep(s0, s0 + dur, t), gg = sstep(s0 + dur*.85, s0 + dur*.85 + gl, t);
+    if (ret) { const r = 1 - sstep(.88, .985, t); k *= r; gg *= r; }
+    return {k, g: gg}; });
+}
+const mixHex = (a, b, k) => { const A = hex(a), B = hex(b); return A.map((v, i) => v + (B[i] - v)*k); };
 function bubbleUniforms(t){
   const fr = bubbleFrame(t), H = cv.height, bb = new Float32Array(48), bc = new Float32Array(36);
   const bg = new Float32Array(12);
-  fr.forEach((f, i) => { bb.set([f.x/H, f.y/H, f.r/H, bHash(i,5)], i*4); bc.set(hex(f.b.c || '#ff7a59'), i*3); bg[i] = f.b.g ? 1 : 0; });
+  const sel = bubbleSel(t);
+  fr.forEach((f, i) => { bb.set([f.x/H, f.y/H, f.r/H, bHash(i,5)], i*4); const c0 = f.b.c || '#ff7a59';
+    bc.set(f.b.g ? mixHex(c0, f.b.c2 || c0, sel[i].k) : hex(c0), i*3); bg[i] = f.b.g ? sel[i].g : 0; });
   gl.uniform4fv(U.uBb, bb); gl.uniform3fv(U.uBc, bc); gl.uniform1i(U.uBn, fr.length);
   gl.uniform1i(U.uBst, S.el.bstyle|0); gl.uniform1i(U.uBtc, S.el.btc|0); gl.uniform1f(U.uBsh, S.el.bshadow ?? .35); gl.uniform1f(U.uBsf, S.el.bsoft ?? .4); gl.uniform1fv(U.uBglo, bg); gl.uniform3f(U.uBgl, S.el.bglow ?? .7, S.el.bglsz ?? .45, S.el.bgpulse ?? .3);
 }
@@ -1793,6 +1812,7 @@ function freeSpot(){
 }
 const BUB_COLS = ['#ff7a59','#8fb8ff','#f4c95d','#c4a3f2','#7fd8a6','#ff9fc8','#5b6cff','#ffd2a6','#2fb5b0','#e8584f','#9ad14b','#b07cff'];
 function buildBubbleUI(er){
+  const subh = t => { const d = document.createElement('div'); d.className = 'subh'; d.textContent = t; er.appendChild(d); };
   if (!Array.isArray(S.bubbles) || !S.bubbles.length) S.bubbles = BUB_DEF();
   const list = document.createElement('div'); list.className = 'blist'; er.appendChild(list);
   const redraw = () => { persist(); if (!playing) render(curT); };
@@ -1801,13 +1821,15 @@ function buildBubbleUI(er){
     it.innerHTML = `<input type="color" id="bc_${i}" aria-label="Blob ${i+1} colour"><textarea id="bt_${i}" rows="${Math.min(3, Math.max(1, String(b.t).split('\n').length))}" spellcheck="false" aria-label="Blob ${i+1} text" placeholder="Text"></textarea>
       <button class="bx" type="button" aria-label="Remove blob ${i+1}" title="Remove blob">×</button>
       <label class="bsz" for="br_${i}">Size<input type="range" id="br_${i}" min=".4" max="1.8" step=".01"><output class="bpc" id="bp_${i}"></output></label>
-      <button class="bg" type="button" id="bg_${i}" aria-pressed="false" title="Glow">✦</button>`;
+      <button class="bg" type="button" id="bg_${i}" aria-pressed="false" title="Select: change colour, then glow">✦</button>
+      ${b.g ? `<label class="bc2" title="Selected colour"><span aria-hidden="true">→</span><input type="color" id="bc2_${i}" aria-label="Blob ${i+1} selected colour"></label>` : ''}`;
     const c = it.querySelector('input[type=color]'), ta = it.querySelector('textarea'), r = it.querySelector('input[type=range]'), x = it.querySelector('.bx');
     c.value = b.c; ta.value = b.t; r.value = b.r || 1; x.disabled = S.bubbles.length <= 1;
     const pcO = it.querySelector('.bpc'), gB = it.querySelector('.bg');
     const fill = () => { r.style.setProperty('--p', ((r.value - .4)/1.4*100) + '%'); pcO.textContent = Math.round(r.value*100) + '%'; }; fill();
-    gB.setAttribute('aria-pressed', String(!!b.g)); gB.setAttribute('aria-label', `Glow on blob ${i+1}`);
-    gB.addEventListener('click', () => { b.g = !b.g; buildDynamic(); redraw(); });
+    gB.setAttribute('aria-pressed', String(!!b.g)); gB.setAttribute('aria-label', `Select blob ${i+1}`);
+    gB.addEventListener('click', () => { b.g = !b.g; if (b.g && !b.c2) b.c2 = '#2f7ff0'; buildDynamic(); redraw(); });
+    const c2 = it.querySelector('#bc2_' + i); if (c2) { c2.value = b.c2 || b.c; c2.addEventListener('input', () => { b.c2 = c2.value; redraw(); }); }
     c.addEventListener('input', () => { b.c = c.value; redraw(); });
     ta.addEventListener('input', () => { b.t = ta.value; ta.rows = Math.min(3, Math.max(1, ta.value.split('\n').length)); redraw(); });
     r.addEventListener('input', () => { b.r = +r.value; fill(); redraw(); });
@@ -1823,16 +1845,24 @@ function buildBubbleUI(er){
   row.append(add, sh); er.appendChild(row);
   if (S.bubbles.length >= 12) { const h = document.createElement('p'); h.className = 'hint'; h.textContent = 'Up to 12 blobs.'; er.appendChild(h); }
   select(er, 'bstyle', 'Blob style', ['Flat','Soft','Glossy','Glow'], EL);
-  if (S.bubbles.some(b => b.g)) {
-    slider(er, 'bglow', 'Glow strength', 0, 1, .01, pct, EL);
-    slider(er, 'bglsz', 'Glow size', 0, 1, .01, pct, EL);
-    slider(er, 'bgpulse', 'Glow pulse', 0, 1, .01, v => v ? pct(v) : 'Off', EL);
-  } else { const h = document.createElement('p'); h.className = 'hint'; h.textContent = 'Tap ✦ on a blob to make it glow.'; er.appendChild(h); }
   slider(er, 'bsoft', 'Edge softness', 0, 1, .01, pct, EL);
   slider(er, 'bshadow', 'Shadow', 0, 1, .01, pct, EL);
   select(er, 'btc', 'Text colour', ['Text colour (above)','Auto: black or white per blob'], EL);
   slider(er, 'bts', 'Text size', .3, 1.2, .01, pct, EL);
   slider(er, 'bsway', 'Text sway', 0, 1, .01, pct, EL);
+  if (S.bubbles.some(b => b.g)) {
+    subh('Selected blobs');
+    select(er, 'bsmode', 'Selection', ['Animate: change colour, then glow','Always selected'], EL).querySelector('select').addEventListener('change', () => buildDynamic());
+    if ((S.el.bsmode|0) === 0) {
+      slider(er, 'bsat', 'Starts at', 0, .6, .01, v => Math.round(v*100) + '% of loop', EL);
+      slider(er, 'bsdur', 'Colour change', .03, .35, .01, v => Math.round(v*100) + '% of loop', EL);
+      slider(er, 'bsstag', 'One after another', 0, .2, .01, v => v ? Math.round(v*100) + '% apart' : 'All at once', EL);
+      select(er, 'bsret', 'At the end', ['Fade back before the loop restarts','Stay selected'], EL);
+    }
+    slider(er, 'bglow', 'Glow strength', 0, 1, .01, pct, EL);
+    slider(er, 'bglsz', 'Glow size', 0, 1, .01, pct, EL);
+    slider(er, 'bgpulse', 'Glow pulse', 0, 1, .01, v => v ? pct(v) : 'Off', EL);
+  } else { const h = document.createElement('p'); h.className = 'hint'; h.textContent = 'Tap ✦ on a blob to select it: it changes to a second colour, then glows.'; er.appendChild(h); }
 }
 function buildDynamic(){
   const p = P();
