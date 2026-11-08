@@ -2,7 +2,8 @@ import json,re,sys
 import os
 U=os.path.join(os.path.dirname(os.path.abspath(__file__)),'src')+'/'
 SHIM='<script>(function(){try{var P=window.parent;if(P!==window&&!("claude" in window)){Object.defineProperty(window,"claude",{configurable:true,get:function(){try{var C=P.claude;if(!C||!C.use)return undefined;return{use:function(n){return Promise.resolve(C.use(n)).then(function(ns){if(n!=="downloads"||!ns||!P.__atelieSave)return ns;return{save:function(o){var d=o&&o.data;return Promise.resolve(d&&d.arrayBuffer?d.arrayBuffer():d).then(function(buf){return P.__atelieSave(o.filename,buf,(d&&d.type)||"")})}}})}}}catch(e){return undefined}}});}document.documentElement.classList.add("in-suite");}catch(e){}})();</script><style>.in-suite body>header.top{display:none}.in-suite body{padding-top:18px}</style>'
-apps=[('type','typeshift.html',False),('carousel','carrossel.html',False),('dots','dotwash.html',True),('gradient','loopwash.html',True)]
+apps=[('type','typeshift.html',False),('carousel','carrossel.html',False),('dots','dotwash.html',True),('gradient','loopwash.html',True),('press','gifpress.html',True)]
+os.makedirs(os.path.join(os.path.dirname(U[:-1]),'build'),exist_ok=True)
 out={}
 for key,f,hide in apps:
     s=open(U+f,encoding='utf-8').read()

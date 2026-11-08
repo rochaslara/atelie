@@ -7,24 +7,24 @@
 /* Layout: one slim tool bar on top, the active studio fills everything below it. Each tab carries its tool's own accent. */
 :root{
   --bar:#f7f6f4; --line:#dedbd6; --fg:#17161a; --muted:#6c6873; --hover:#ecebe7; --sel:#ffffff; --stage:#e9e8e4;
-  --c-type:#1d5f7a; --c-carousel:#e39a17; --c-dots:#c2185b; --c-gradient:#3040d8;
+  --c-type:#1d5f7a; --c-carousel:#e39a17; --c-dots:#c2185b; --c-gradient:#3040d8; --c-press:#0f7668;
   --display:"Bricolage Grotesque","Geist",system-ui,sans-serif;
   --ui:"Geist",system-ui,-apple-system,"Segoe UI",sans-serif;
   --mono:"Geist Mono",ui-monospace,Menlo,monospace;
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   --bar:#121216; --line:#26252c; --fg:#ebe9ee; --muted:#8f8b98; --hover:#1c1b21; --sel:#24232a; --stage:#0b0b0e;
-  --c-type:#bfe3f0; --c-carousel:#ffb02e; --c-dots:#ff6fa4; --c-gradient:#8c9aff; color-scheme:dark}}
+  --c-type:#bfe3f0; --c-carousel:#ffb02e; --c-dots:#ff6fa4; --c-gradient:#8c9aff; --c-press:#5fd3bf; color-scheme:dark}}
 :root[data-theme="dark"]{
   --bar:#121216; --line:#26252c; --fg:#ebe9ee; --muted:#8f8b98; --hover:#1c1b21; --sel:#24232a; --stage:#0b0b0e;
-  --c-type:#bfe3f0; --c-carousel:#ffb02e; --c-dots:#ff6fa4; --c-gradient:#8c9aff; color-scheme:dark}
+  --c-type:#bfe3f0; --c-carousel:#ffb02e; --c-dots:#ff6fa4; --c-gradient:#8c9aff; --c-press:#5fd3bf; color-scheme:dark}
 html,body{height:100%}
 body{background:var(--stage);color:var(--fg);font:13px/1.4 var(--ui);overflow:hidden}
 *{box-sizing:border-box}
 .shell{height:100%;display:grid;grid-template-rows:auto minmax(0,1fr)}
 .bar{display:flex;align-items:center;gap:18px;padding-block:7px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));background:var(--bar);border-bottom:1px solid var(--line);min-width:0}
 .brand{display:flex;align-items:center;gap:9px;font:700 17px/1 var(--display);letter-spacing:-.02em;flex:none}
-.brand i{width:18px;height:18px;border-radius:5px;background:conic-gradient(var(--c-type) 0 25%,var(--c-carousel) 0 50%,var(--c-dots) 0 75%,var(--c-gradient) 0)}
+.brand i{width:18px;height:18px;border-radius:5px;background:conic-gradient(var(--c-type) 0 20%,var(--c-carousel) 0 40%,var(--c-dots) 0 60%,var(--c-gradient) 0 80%,var(--c-press) 0)}
 nav{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;min-width:0;flex:1}
 nav::-webkit-scrollbar{display:none}
 .tab{flex:none;display:flex;align-items:center;gap:8px;border:1px solid transparent;background:none;color:var(--muted);border-radius:8px;padding:6px 12px 6px 10px;cursor:pointer;font:500 13px var(--ui)}
@@ -44,7 +44,7 @@ nav::-webkit-scrollbar{display:none}
   <header class="bar">
     <div class="brand"><i aria-hidden="true"></i><span>Ateliê</span></div>
     <nav role="tablist" aria-label="Tools" id="tabs"></nav>
-    <span class="hint">Alt + 1–4</span>
+    <span class="hint">Alt + 1–5</span>
   </header>
   <div class="frames" id="frames"></div>
 </div>
@@ -65,6 +65,7 @@ const TOOLS = [
   {id:'carousel', name:'Carrossel', kind:'Carousels', color:'--c-carousel'},
   {id:'dots', name:'Dotwash', kind:'Halftone', color:'--c-dots'},
   {id:'gradient', name:'Loopwash', kind:'Gradients', color:'--c-gradient'},
+  {id:'press', name:'Gifpress', kind:'GIF compression', color:'--c-press'},
 ];
 const tabs = document.getElementById('tabs'), frames = document.getElementById('frames');
 const loaded = {};

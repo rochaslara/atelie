@@ -1,0 +1,602 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Gifpress</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --bg:#eceef0; --panel:#fbfbfb; --sunk:#e3e7e8; --line:#d4dadb; --line-strong:#b6bfc1;
+  --text:#141a1b; --muted:#5d6869; --faint:#879192;
+  --accent:#0f7668; --accent-ink:#ffffff; --accent-soft:#d5eeea;
+  --ok:#1d7a4f; --warn:#a4541a; --stage:#d8dddf;
+  --sans:"Instrument Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono:"JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#0c0f10; --panel:#141819; --sunk:#1b2122; --line:#262d2f; --line-strong:#3a4345;
+    --text:#e7ecec; --muted:#93a0a1; --faint:#6a7678;
+    --accent:#5fd3bf; --accent-ink:#0c0f10; --accent-soft:#183a35;
+    --ok:#5fcf97; --warn:#f0a36a; --stage:#080a0b;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#0c0f10; --panel:#141819; --sunk:#1b2122; --line:#262d2f; --line-strong:#3a4345;
+  --text:#e7ecec; --muted:#93a0a1; --faint:#6a7678;
+  --accent:#5fd3bf; --accent-ink:#0c0f10; --accent-soft:#183a35;
+  --ok:#5fcf97; --warn:#f0a36a; --stage:#080a0b;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{height:auto}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.45;padding:18px 20px 40px}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.top{max-width:1400px;margin:0 auto 16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.mark{display:flex;align-items:center;gap:10px}
+.mark-dot{width:22px;height:22px;border-radius:6px;background:repeating-linear-gradient(90deg,var(--accent) 0 3px,transparent 3px 6px),var(--accent-soft);box-shadow:inset 0 0 0 1px rgba(0,0,0,.08)}
+.mark h1{font-size:19px;font-weight:700;letter-spacing:-.02em;margin:0}
+.top p{margin:0;color:var(--muted);font-size:13px}
+
+.app{max-width:1400px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:20px;align-items:start}
+@media (max-width:980px){.app{grid-template-columns:minmax(0,1fr)}}
+.main-col{display:flex;flex-direction:column;gap:16px;min-width:0}
+
+.drop{background:var(--stage);border:2px dashed var(--line-strong);border-radius:14px;min-height:240px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:28px;text-align:center}
+.drop.drag{border-color:var(--accent);background:var(--accent-soft)}
+.drop h2{margin:0;font-size:18px;font-weight:600;letter-spacing:-.01em}
+.drop p{margin:0;color:var(--muted);font-size:13px;max-width:440px}
+.drop.compact{min-height:0;flex-direction:row;justify-content:space-between;padding:12px 16px;text-align:left}
+.drop.compact h2{font-size:14px}
+.drop.compact p{display:none}
+
+.compare{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.compare-h{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+.compare-h b{font-family:var(--mono);font-size:12px;font-weight:500;word-break:break-all}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.pair figure{margin:0;display:flex;flex-direction:column;gap:8px;min-width:0}
+.view{background:var(--stage);background-image:conic-gradient(var(--sunk) 25%,transparent 0 50%,var(--sunk) 0 75%,transparent 0);background-size:16px 16px;border-radius:10px;display:grid;place-items:center;padding:12px;height:min(52vh,460px)}
+.view img,.view video{max-width:100%;max-height:100%;display:block;border-radius:4px}
+.pair figcaption{display:flex;justify-content:space-between;gap:8px;font-family:var(--mono);font-size:11px;color:var(--muted);flex-wrap:wrap}
+.pair figcaption strong{color:var(--text);font-weight:500}
+
+.section-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:0 0 10px}
+.section-h h2{font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin:0}
+.section-h .aside{font-family:var(--mono);font-size:11.5px;color:var(--muted)}
+.files{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+.file{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px;display:flex;flex-direction:column;gap:7px;text-align:left;min-width:0}
+.file[aria-pressed="true"]{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.file .th{background:var(--sunk);border-radius:7px;aspect-ratio:9/14;display:grid;place-items:center;overflow:hidden}
+.file .th img,.file .th video{width:100%;height:100%;object-fit:cover;display:block}
+.file .nm{font-family:var(--mono);font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.file .sz{font-family:var(--mono);font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+.file .sz b{color:var(--text);font-weight:500}
+.file .tags{display:flex;gap:4px;flex-wrap:wrap}
+.tag{font-family:var(--mono);font-size:9.5px;letter-spacing:.04em;text-transform:uppercase;padding:2px 6px;border-radius:99px;background:var(--sunk);color:var(--muted);white-space:nowrap}
+.tag.good{background:var(--accent-soft);color:var(--accent)}
+.file .pick{position:absolute;inset:0;border:0;background:none;border-radius:12px}
+.file .rm{position:absolute;top:12px;right:12px;width:24px;height:24px;border-radius:50%;border:0;background:rgba(0,0,0,.55);color:#fff;font-size:14px;line-height:1;display:grid;place-items:center;z-index:1}
+.file .state{font-size:11.5px;color:var(--muted)}
+.file .state.err{color:var(--warn)}
+
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;display:flex;flex-direction:column;position:sticky;top:12px}
+@media (max-width:980px){.panel{position:static}}
+.group{padding:16px 18px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:11px}
+.group:first-child{border-top:0}
+.group h2{font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin:0}
+.hint{font-size:12.5px;color:var(--muted);margin:0}
+.seg{display:flex;background:var(--sunk);border-radius:9px;padding:3px;gap:3px}
+.seg button{flex:1;border:0;background:none;border-radius:7px;padding:6px 8px;font-size:13px;font-weight:500;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--panel);color:var(--text);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.check{display:flex;align-items:center;gap:9px;font-size:13px;font-weight:500;cursor:pointer}
+.check input{width:16px;height:16px;accent-color:var(--accent);margin:0;flex:none}
+.ctl{display:flex;flex-direction:column;gap:4px}
+.ctl-top{display:flex;justify-content:space-between;align-items:baseline}
+.ctl label{font-size:12.5px;color:var(--muted)}
+.ctl output{font-family:var(--mono);font-size:12px;color:var(--text);font-variant-numeric:tabular-nums}
+.dim{opacity:.45}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:20px;background:none;margin:0}
+input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:4px;background:linear-gradient(to right,var(--accent) var(--p,50%),var(--line) var(--p,50%))}
+input[type=range]::-moz-range-track{height:4px;border-radius:4px;background:var(--line)}
+input[type=range]::-moz-range-progress{height:4px;border-radius:4px;background:var(--accent)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:var(--panel);border:2px solid var(--accent);margin-top:-6px}
+input[type=range]::-moz-range-thumb{width:12px;height:12px;border-radius:50%;background:var(--panel);border:2px solid var(--accent)}
+input[type=range]:disabled{opacity:.45}
+.primary{border:0;border-radius:10px;background:var(--accent);color:var(--accent-ink);padding:12px 14px;font-weight:600;font-size:14px}
+.primary:hover:not(:disabled){filter:brightness(1.08)}
+.primary:disabled{opacity:.55;cursor:default}
+.pill-btn{border:1px solid var(--line-strong);background:var(--panel);border-radius:99px;padding:6px 13px;font-size:12.5px;font-weight:500}
+.pill-btn:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.pill-btn:disabled{opacity:.4;cursor:default}
+.upload{display:inline-flex;align-items:center}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.progress{height:6px;border-radius:6px;background:var(--sunk);overflow:hidden}
+.progress i{display:block;height:100%;width:0;background:var(--accent);transition:width .1s}
+.status{font-size:12.5px;color:var(--muted);min-height:1.2em;margin:0}
+.status.err{color:var(--warn)}
+.status.ok{color:var(--ok)}
+.total{font-family:var(--mono);font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;line-height:1.6}
+.total b{color:var(--text);font-weight:500;font-size:15px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+</style>
+<script>/*@GIFQ*/</script>
+</head>
+<body>
+
+<header class="top">
+  <div class="mark"><div class="mark-dot" aria-hidden="true"></div><h1>Gifpress</h1></div>
+  <p>Lighter GIFs for decks, without touching how they look.</p>
+</header>
+
+<main class="app">
+  <section class="main-col" aria-label="Files">
+    <div class="drop" id="drop">
+      <div>
+        <h2 id="dropTitle">Drop GIFs here</h2>
+        <p>Add as many as you like. Nothing leaves your browser.</p>
+      </div>
+      <label class="pill-btn upload">Choose GIFs<input type="file" id="fileIn" accept="image/gif,.gif" multiple class="sr"></label>
+    </div>
+
+    <div class="compare" id="compare" hidden>
+      <div class="compare-h"><b id="cmpName"></b><div class="row"><span class="tags" id="cmpTags"></span><button class="pill-btn" id="cmpDl" type="button" hidden>Download</button></div></div>
+      <div class="pair">
+        <figure><div class="view" id="cmpBefore"></div><figcaption><span>Original</span><strong id="cmpBeforeInfo"></strong></figcaption></figure>
+        <figure><div class="view" id="cmpAfter"></div><figcaption><span id="cmpAfterLabel">Compressed</span><strong id="cmpAfterInfo"></strong></figcaption></figure>
+      </div>
+      <p class="hint" id="cmpNote" hidden></p>
+    </div>
+
+    <div id="listWrap" hidden>
+      <div class="section-h"><h2>Files</h2><span class="aside" id="listAside"></span></div>
+      <div class="files" id="files"></div>
+    </div>
+  </section>
+
+  <aside class="panel" aria-label="Settings">
+    <div class="group">
+      <h2>Output</h2>
+      <div class="seg" id="formatSeg" role="group" aria-label="Output format"><button type="button" data-v="gif">GIF</button><button type="button" data-v="mp4">MP4</button></div>
+      <p class="hint" id="formatHint"></p>
+    </div>
+    <div class="group">
+      <h2>Length</h2>
+      <label class="check"><input type="checkbox" id="trimOn"> Keep only the start of each clip</label>
+      <div class="ctl" id="trimCtl"><div class="ctl-top"><label for="trimS">First</label><output id="trimSo"></output></div><input type="range" id="trimS" min="1" max="20" step="0.5"></div>
+      <p class="hint" id="trimHint"></p>
+    </div>
+    <div class="group">
+      <h2>Size</h2>
+      <label class="check"><input type="checkbox" id="widthOn"> Shrink GIFs wider than</label>
+      <div class="ctl" id="widthCtl"><div class="ctl-top"><label for="maxW">Max width</label><output id="maxWo"></output></div><input type="range" id="maxW" min="120" max="960" step="2"></div>
+      <p class="hint">Only wider files are resized. Match it to how big the tile will be on the slide: twice its width in pixels is plenty for a projector.</p>
+    </div>
+    <div class="group" id="lossyGroup">
+      <h2>Extra compression</h2>
+      <label class="check"><input type="checkbox" id="lossyOn"> Lossy compression</label>
+      <div class="ctl" id="lossyCtl"><div class="ctl-top"><label for="q">Quality</label><output id="qo"></output></div><input type="range" id="q" min="5" max="100" step="5"></div>
+      <p class="hint" id="qHint"></p>
+    </div>
+    <div class="group">
+      <button class="primary" id="goBtn" type="button" disabled>Compress</button>
+      <div class="progress" id="progress" hidden><i id="progressBar"></i></div>
+      <p class="status" id="status" role="status"></p>
+      <div class="total" id="total" hidden></div>
+      <div class="row">
+        <button class="pill-btn" id="zipBtn" type="button" disabled>Download all (.zip)</button>
+        <button class="pill-btn" id="clearBtn" type="button" disabled>Clear</button>
+      </div>
+      <button class="pill-btn" id="resetBtn" type="button" style="align-self:flex-start">Reset to defaults</button>
+    </div>
+  </aside>
+</main>
+
+<script>
+(() => {
+'use strict';
+const $ = id => document.getElementById(id);
+
+/* ---------- settings (defaults = the deck-grid settings) ---------- */
+const DEFAULTS = { format:'gif', trim:{gif:true, mp4:false}, trimS:6, width:{gif:true, mp4:false}, maxW:242, lossyOn:false, q:80 };
+const KEY = 'atelie-gifpress';
+let S = JSON.parse(JSON.stringify(DEFAULTS));
+try { const s = JSON.parse(localStorage.getItem(KEY) || 'null'); if (s && typeof s === 'object') S = Object.assign(S, s, { trim:Object.assign({}, DEFAULTS.trim, s.trim), width:Object.assign({}, DEFAULTS.width, s.width) }); } catch (e) {}
+const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} };
+
+/* ---------- GIF reading ---------- */
+function parseGif(d){
+  if (d.length < 13 || d[0] !== 0x47 || d[1] !== 0x49 || d[2] !== 0x46) throw new Error('Not a GIF file.');
+  const w = d[6] | (d[7] << 8), h = d[8] | (d[9] << 8), flags = d[10];
+  let p = 13, gct = null;
+  if (flags & 0x80) { const n = 3 * (1 << ((flags & 7) + 1)); gct = d.subarray(p, p + n); p += n; }
+  const headerEnd = p, frames = [];
+  let pendStart = p, delay = 0, disposal = 0, trans = -1;
+  const skip = i => { while (i < d.length) { const s = d[i++]; if (s === 0) return i; i += s; } throw new Error('This GIF is cut off.'); };
+  while (p < d.length) {
+    const b = d[p];
+    if (b === 0x3B) break;
+    if (b === 0x21) {
+      const label = d[p + 1];
+      if (label === 0xF9) { const pf = d[p + 3]; disposal = (pf >> 2) & 7; delay = d[p + 4] | (d[p + 5] << 8); trans = (pf & 1) ? d[p + 6] : -1; }
+      p = skip(p + 2);
+    } else if (b === 0x2C) {
+      const x = d[p+1] | (d[p+2] << 8), y = d[p+3] | (d[p+4] << 8), fw = d[p+5] | (d[p+6] << 8), fh = d[p+7] | (d[p+8] << 8), pf = d[p+9];
+      let q = p + 10, lct = null;
+      if (pf & 0x80) { const n = 3 * (1 << ((pf & 7) + 1)); lct = d.subarray(q, q + n); q += n; }
+      const minCode = d[q], dataStart = q + 1, end = skip(q + 1);
+      frames.push({ start:pendStart, end, x, y, fw, fh, interlace:!!(pf & 0x40), lct, minCode, dataStart, dataEnd:end,
+                    delay: delay < 2 ? 10 : delay, rawDelay: delay, disposal, trans });
+      p = end; pendStart = p; delay = 0; disposal = 0; trans = -1;
+    } else throw new Error('This GIF has a damaged block.');
+  }
+  if (!frames.length) throw new Error('This GIF has no frames.');
+  const dur = frames.reduce((a, f) => a + f.delay, 0) / 100;
+  return { d, w, h, gct, headerEnd, frames, dur };
+}
+// keep the first `sec` seconds by copying the original bytes: frames stay exactly as they were
+function trimGif(g, sec){
+  const lim = sec * 100; let t = 0, k = 0;
+  while (k < g.frames.length) { t += g.frames[k].delay; k++; if (t >= lim - 0.5) break; }
+  if (k >= g.frames.length) return null;
+  const parts = [g.d.subarray(0, g.headerEnd)];
+  for (let i = 0; i < k; i++) parts.push(g.d.subarray(g.frames[i].start, g.frames[i].end));
+  let n = 1; parts.forEach(a => n += a.length);
+  const out = new Uint8Array(n); let o = 0; parts.forEach(a => { out.set(a, o); o += a.length; }); out[o] = 0x3B;
+  return out;
+}
+function lzwDecode(d, f){
+  const npix = f.fw * f.fh, out = new Uint8Array(npix), minCode = f.minCode;
+  const prefix = new Uint16Array(4096), suffix = new Uint8Array(4096), stack = new Uint8Array(4097);
+  const clear = 1 << minCode, eoi = clear + 1;
+  for (let i = 0; i < clear; i++) suffix[i] = i;
+  let size = minCode + 1, mask = (1 << size) - 1, next = eoi + 1, old = -1, first = 0;
+  let datum = 0, bits = 0, op = 0, i = f.dataStart, left = 0;
+  while (op < npix) {
+    while (bits < size) {
+      if (left === 0) { if (i >= f.dataEnd) return out; left = d[i++]; if (left === 0) return out; }
+      datum |= d[i++] << bits; bits += 8; left--;
+    }
+    let code = datum & mask; datum >>>= size; bits -= size;
+    if (code === clear) { size = minCode + 1; mask = (1 << size) - 1; next = eoi + 1; old = -1; continue; }
+    if (code === eoi) break;
+    if (old === -1) { if (code >= clear) break; out[op++] = code; old = first = code; continue; }
+    const inCode = code; let sp = 0;
+    if (code >= next) { stack[sp++] = first; code = old; }
+    while (code >= clear) { stack[sp++] = suffix[code]; code = prefix[code]; }
+    first = code; stack[sp++] = code;
+    if (next < 4096) { prefix[next] = old; suffix[next] = first; next++; if ((next & mask) === 0 && next < 4096) { size++; mask = (1 << size) - 1; } }
+    old = inCode;
+    while (sp > 0 && op < npix) out[op++] = stack[--sp];
+  }
+  return out;
+}
+// sequential frame renderer (handles disposal and interlacing); rewinds when asked for an earlier frame
+function Renderer(g){
+  const W = g.w, H = g.h, canvas = new Uint8ClampedArray(W * H * 4);
+  let at = -1, saved = null, prev = null;
+  const reset = () => { canvas.fill(0); at = -1; saved = null; prev = null; };
+  function step(){
+    if (prev) {
+      if (prev.disposal === 2) for (let y = prev.y; y < Math.min(H, prev.y + prev.fh); y++) canvas.fill(0, (y * W + prev.x) * 4, (y * W + Math.min(W, prev.x + prev.fw)) * 4);
+      else if (prev.disposal === 3 && saved) canvas.set(saved);
+    }
+    const f = g.frames[++at], pal = f.lct || g.gct, idx = lzwDecode(g.d, f);
+    if (f.disposal === 3) saved = canvas.slice();
+    const rows = [];
+    if (f.interlace) { for (const [s, st] of [[0,8],[4,8],[2,4],[1,2]]) for (let y = s; y < f.fh; y += st) rows.push(y); }
+    for (let r = 0; r < f.fh; r++) {
+      const y = (f.interlace ? rows[r] : r) + f.y; if (y >= H) continue;
+      for (let c = 0; c < f.fw; c++) {
+        const x = c + f.x; if (x >= W) continue;
+        const v = idx[r * f.fw + c]; if (v === f.trans || !pal) continue;
+        const o = (y * W + x) * 4, pi = v * 3;
+        canvas[o] = pal[pi]; canvas[o+1] = pal[pi+1]; canvas[o+2] = pal[pi+2]; canvas[o+3] = 255;
+      }
+    }
+    prev = f;
+  }
+  return { get(i){ if (i <= at) reset(); while (at < i) step(); return canvas; } };
+}
+
+/* ---------- resizing (canvas, high quality) ---------- */
+function Scaler(sw, sh, tw, th, fill){
+  const src = document.createElement('canvas'); src.width = sw; src.height = sh;
+  const dst = document.createElement('canvas'); dst.width = tw; dst.height = th;
+  const sx = src.getContext('2d'), dx = dst.getContext('2d', { willReadFrequently:true });
+  dx.imageSmoothingEnabled = true; dx.imageSmoothingQuality = 'high';
+  return { canvas:dst, draw(rgba){
+    sx.putImageData(new ImageData(rgba, sw, sh), 0, 0);
+    dx.clearRect(0, 0, tw, th);
+    if (fill) { dx.fillStyle = fill; dx.fillRect(0, 0, tw, th); }
+    dx.drawImage(src, 0, 0, tw, th);
+    return dx.getImageData(0, 0, tw, th).data;
+  } };
+}
+
+/* ---------- MP4 (WebCodecs + mp4-muxer, same as Loopwash) ---------- */
+let muxerLoad = null;
+function loadMuxer(){
+  if (window.Mp4Muxer) return Promise.resolve();
+  if (!muxerLoad) muxerLoad = new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'https://cdn.jsdelivr.net/npm/mp4-muxer@5.1.3/build/mp4-muxer.js'; s.onload = res; s.onerror = () => { muxerLoad = null; rej(new Error('Could not load the MP4 writer. Check your connection.')); }; document.head.append(s); });
+  return muxerLoad;
+}
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function encodeMp4(g, n, tw, th, onP){
+  if (!window.VideoEncoder) throw new Error('This browser can\'t make MP4. Use a current Chrome, Edge or Safari, or choose GIF.');
+  await loadMuxer();
+  const fpsAvg = Math.max(1, Math.round(100 * n / g.frames.slice(0, n).reduce((a, f) => a + f.delay, 0)));
+  const bitrate = Math.round(Math.max(600000, tw * th * fpsAvg * 0.6));
+  const cands = ['avc1.640028','avc1.4d0028','avc1.42e01f','avc1.640033','avc1.4d0033','avc1.42e033'];
+  let codec = null;
+  for (const c of cands) { try { const s = await VideoEncoder.isConfigSupported({ codec:c, width:tw, height:th, bitrate, framerate:fpsAvg }); if (s.supported) { codec = c; break; } } catch (e) {} }
+  if (!codec) throw new Error('This browser has no MP4 (H.264) encoder. Try Chrome, Edge or Safari, or choose GIF.');
+  const muxer = new Mp4Muxer.Muxer({ target:new Mp4Muxer.ArrayBufferTarget(), video:{ codec:'avc', width:tw, height:th, frameRate:fpsAvg }, fastStart:'in-memory' });
+  let err = null;
+  const enc = new VideoEncoder({ output:(chunk, meta) => muxer.addVideoChunk(chunk, meta), error:e => { err = e; } });
+  enc.configure({ codec, width:tw, height:th, bitrate, framerate:fpsAvg, latencyMode:'quality', avc:{ format:'avc' } });
+  const R = Renderer(g), sc = Scaler(g.w, g.h, tw, th, '#ffffff');
+  let t = 0;
+  for (let i = 0; i < n; i++) {
+    if (err) throw err;
+    sc.draw(R.get(i));
+    const dur = g.frames[i].delay * 10000;
+    const vf = new VideoFrame(sc.canvas, { timestamp:Math.round(t), duration:Math.round(dur) });
+    enc.encode(vf, { keyFrame: i % (fpsAvg * 2) === 0 }); vf.close(); t += dur;
+    while (enc.encodeQueueSize > 6) await sleep(2);
+    if (i % 4 === 0) { onP((i + 1) / n); await sleep(0); }
+  }
+  await enc.flush(); if (err) throw err; muxer.finalize();
+  return new Blob([muxer.target.buffer], { type:'video/mp4' });
+}
+
+/* ---------- one file ---------- */
+const fmtB = b => b < 1e6 ? Math.max(1, Math.round(b / 1e3)) + ' KB' : (b / 1e6).toFixed(b < 1e7 ? 2 : 1) + ' MB';
+const fmtS = s => (Math.round(s * 10) / 10).toFixed(1) + ' s';
+const even = v => Math.max(2, v - (v % 2));
+async function compress(item, onP){
+  const fmt = S.format, trimOn = S.trim[fmt], widthOn = S.width[fmt];
+  let g = item.g, bytes = item.bytes; const tags = [];
+  if (trimOn && g.dur > S.trimS + 0.05) {
+    const t = trimGif(g, S.trimS);
+    if (t) { bytes = t; g = parseGif(t); tags.push(['Cut ' + fmtS(item.g.dur) + ' → ' + fmtS(g.dur)]); }
+  }
+  let tw = g.w, th = g.h;
+  if (widthOn && g.w > S.maxW) { tw = S.maxW; th = Math.max(1, Math.round(g.h * S.maxW / g.w)); }
+  if (fmt === 'mp4') {
+    tw = even(tw); th = even(th);
+    const blob = await encodeMp4(g, g.frames.length, tw, th, onP);
+    if (tw !== item.g.w) tags.push(['Resized ' + item.g.w + ' → ' + tw + ' px']);
+    tags.push(['MP4 · full colour', true]);
+    return { blob, ext:'mp4', w:tw, h:th, n:g.frames.length, dur:g.dur, tags };
+  }
+  const resize = tw !== g.w, lossy = S.lossyOn;
+  if (!resize && !lossy) {
+    tags.push(['Frames untouched', true]);
+    return { blob:new Blob([bytes], { type:'image/gif' }), ext:'gif', w:g.w, h:g.h, n:g.frames.length, dur:g.dur, tags };
+  }
+  const n = g.frames.length, R = Renderer(g);
+  let transparent = false;
+  for (let i = 0; i < n && !transparent; i++) { const c = R.get(i); for (let k = 3; k < c.length; k += 4) if (c[k] < 128) { transparent = true; break; } }
+  const sc = resize ? Scaler(g.w, g.h, tw, th, null) : null;
+  const blob = await GIFQ.encode({ w:tw, h:th, n, delays:g.frames.map(f => f.delay), transparent, quality: lossy ? S.q : 100, dither: resize,
+    getFrame: i => { const c = R.get(i); return sc ? sc.draw(c) : c; }, onProgress: f => onP(f) });
+  if (resize) tags.push(['Resized ' + g.w + ' → ' + tw + ' px']);
+  if (lossy) tags.push(['Lossy · quality ' + S.q]);
+  // re-encoding can lose to the original bytes (a small resize, or lossy on a GIF that's already tight): keep the lighter one
+  if (blob.size >= bytes.length) {
+    const kept = tags.filter(t => t[0].startsWith('Cut'));
+    kept.push(['Frames untouched', true]);
+    return { blob:new Blob([bytes], { type:'image/gif' }), ext:'gif', w:g.w, h:g.h, n, dur:g.dur, tags:kept,
+             note: resize ? 'Resizing made this one heavier, so the original frames were kept.' : 'Re-encoding made this one heavier, so the original frames were kept.' };
+  }
+  return { blob, ext:'gif', w:tw, h:th, n, dur:g.dur, tags };
+}
+
+/* ---------- state + UI ---------- */
+const items = []; let sel = null, busy = false, uid = 0;
+const baseName = n => n.replace(/\.[^.]+$/, '');
+const info = (w, h, n, dur, size) => `${w}×${h} · ${n} fr · ${fmtS(dur)} · ${fmtB(size)}`;
+
+async function addFiles(list){
+  const gifs = [...list].filter(f => /\.gif$/i.test(f.name) || f.type === 'image/gif');
+  const skipped = list.length - gifs.length;
+  for (const f of gifs) {
+    try {
+      const bytes = new Uint8Array(await f.arrayBuffer());
+      const g = parseGif(bytes);
+      items.push({ id:++uid, name:f.name, bytes, g, url:URL.createObjectURL(f), out:null, err:'' });
+    } catch (e) { setStatus(f.name + ': ' + (e.message || 'could not be read.'), 'err'); }
+  }
+  if (skipped) setStatus(`${skipped} file${skipped > 1 ? 's' : ''} skipped: only GIFs can be added.`, 'err');
+  if (!sel && items.length) sel = items[0].id;
+  render();
+}
+function invalidate(){
+  let any = false;
+  items.forEach(it => { if (it.out) { URL.revokeObjectURL(it.out.url); it.out = null; any = true; } });
+  if (any) setStatus('Settings changed. Press Compress to update the files.');
+  render();
+}
+function el(tag, props = {}, kids = []){ const e = Object.assign(document.createElement(tag), props); kids.forEach(k => e.append(k)); return e; }
+function tagEls(tags){ return tags.map(([t, good]) => el('span', { className:'tag' + (good ? ' good' : ''), textContent:t })); }
+function media(url, ext, alt){
+  return ext === 'mp4' ? el('video', { src:url, muted:true, loop:true, autoplay:true, playsInline:true, ariaLabel:alt })
+                       : el('img', { src:url, alt });
+}
+function render(){
+  const has = items.length > 0;
+  $('drop').classList.toggle('compact', has);
+  $('dropTitle').textContent = has ? 'Add more GIFs' : 'Drop GIFs here';
+  $('listWrap').hidden = !has;
+  const box = $('files'); box.textContent = '';
+  let before = 0, after = 0, done = 0;
+  for (const it of items) {
+    before += it.bytes.length;
+    if (it.out) { after += it.out.blob.size; done++; }
+    const card = el('div', { className:'file' });
+    card.setAttribute('aria-pressed', String(it.id === sel));
+    const th = el('div', { className:'th' }, [it.out ? media(it.out.url, it.out.ext, '') : el('img', { src:it.url, alt:'' })]);
+    const sz = el('div', { className:'sz' });
+    if (it.out) { const pct = Math.round((1 - it.out.blob.size / it.bytes.length) * 100); sz.innerHTML = `${fmtB(it.bytes.length)} → <b>${fmtB(it.out.blob.size)}</b> · ${pct >= 0 ? '−' + pct : '+' + (-pct)}%`; }
+    else sz.textContent = `${it.g.w}×${it.g.h} · ${fmtS(it.g.dur)} · ${fmtB(it.bytes.length)}`;
+    const pick = el('button', { type:'button', className:'pick', ariaLabel:'Compare ' + it.name });
+    pick.addEventListener('click', () => { sel = it.id; render(); });
+    const rm = el('button', { type:'button', className:'rm', textContent:'×', ariaLabel:'Remove ' + it.name, disabled:busy });
+    rm.addEventListener('click', e => { e.stopPropagation(); remove(it.id); });
+    card.append(th, el('div', { className:'nm', textContent:it.name, title:it.name }), sz);
+    if (it.out) card.append(el('div', { className:'tags' }, tagEls(it.out.tags)));
+    if (it.err) card.append(el('div', { className:'state err', textContent:it.err }));
+    if (it.state) card.append(el('div', { className:'state', textContent:it.state }));
+    card.append(pick, rm);
+    box.append(card);
+  }
+  $('listAside').textContent = has ? `${items.length} file${items.length > 1 ? 's' : ''} · ${fmtB(before)}` : '';
+  $('goBtn').disabled = !has || busy;
+  $('clearBtn').disabled = !has || busy;
+  $('zipBtn').disabled = !done || busy;
+  $('total').hidden = !done;
+  if (done) $('total').innerHTML = `${done === items.length ? 'All' : done + ' of ' + items.length} files<br><b>${fmtB(items.filter(i => i.out).reduce((a, i) => a + i.bytes.length, 0))} → ${fmtB(after)}</b><br>${Math.round((1 - after / items.filter(i => i.out).reduce((a, i) => a + i.bytes.length, 0)) * 100)}% lighter`;
+  renderCompare();
+}
+function renderCompare(){
+  const it = items.find(i => i.id === sel);
+  $('compare').hidden = !it; if (!it) return;
+  $('cmpName').textContent = it.name;
+  $('cmpBefore').replaceChildren(el('img', { src:it.url, alt:'Original ' + it.name }));
+  $('cmpBeforeInfo').textContent = info(it.g.w, it.g.h, it.g.frames.length, it.g.dur, it.bytes.length);
+  const o = it.out;
+  $('cmpAfterLabel').textContent = o ? (o.ext === 'mp4' ? 'MP4' : 'Compressed') : 'Compressed';
+  $('cmpAfter').replaceChildren(o ? media(o.url, o.ext, 'Compressed ' + it.name) : el('p', { className:'hint', textContent:'Press Compress to see the result.' }));
+  $('cmpAfterInfo').textContent = o ? info(o.w, o.h, o.n, o.dur, o.blob.size) : '';
+  $('cmpTags').replaceChildren(...(o ? tagEls(o.tags) : []));
+  $('cmpNote').hidden = !(o && o.note); if (o && o.note) $('cmpNote').textContent = o.note;
+  $('cmpDl').hidden = !o; if (o) $('cmpDl').textContent = 'Download ' + o.ext.toUpperCase();
+}
+function remove(id){
+  const i = items.findIndex(x => x.id === id); if (i < 0) return;
+  const it = items[i]; URL.revokeObjectURL(it.url); if (it.out) URL.revokeObjectURL(it.out.url);
+  items.splice(i, 1);
+  if (sel === id) sel = items[Math.min(i, items.length - 1)]?.id ?? null;
+  render();
+}
+function setStatus(m, c = ''){ $('status').textContent = m; $('status').className = 'status ' + c; }
+function setProgress(f){ $('progress').hidden = f == null; if (f != null) $('progressBar').style.width = (f * 100).toFixed(1) + '%'; }
+
+async function run(){
+  if (busy || !items.length) return;
+  busy = true; render();
+  const n = items.length; let ok = 0;
+  for (let k = 0; k < n; k++) {
+    const it = items[k];
+    if (it.out) { URL.revokeObjectURL(it.out.url); it.out = null; }
+    it.err = ''; it.state = 'Working…'; sel = it.id; render();
+    setStatus(`Compressing ${k + 1} of ${n}: ${it.name}`); setProgress(k / n);
+    try {
+      const r = await compress(it, f => setProgress((k + Math.min(1, f)) / n));
+      r.url = URL.createObjectURL(r.blob); r.name = baseName(it.name) + '.' + r.ext;
+      it.out = r; ok++;
+    } catch (e) { console.error(e); it.err = (e && e.message) || 'Could not compress this file.'; }
+    it.state = '';
+    await sleep(0);
+  }
+  busy = false; setProgress(null); render();
+  setStatus(ok === n ? `Done. ${ok} file${ok > 1 ? 's' : ''} ready.` : `${ok} of ${n} done. See the files marked in orange.`, ok === n ? 'ok' : 'err');
+}
+
+/* ---------- saving ---------- */
+let downloads = null;
+if (window.claude && window.claude.use) { try { Promise.resolve(window.claude.use('downloads')).then(d => { downloads = d; }).catch(() => {}); } catch (e) {} }
+async function save(name, blob){
+  if (!downloads) {
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+    setStatus('Downloaded ' + name, 'ok'); return;
+  }
+  try { await downloads.save({ filename:name, data:blob }); setStatus('Saved ' + name, 'ok'); }
+  catch (e) {
+    const c = e && e.code;
+    setStatus(c === 'declined' ? 'Save cancelled.' : c === 'rate_limited' ? 'A save prompt is already open.' : c === 'too_large' ? 'That file is too large to save here. Download the files one by one.' : 'Saving isn\'t available in this view.', c === 'declined' ? '' : 'err');
+  }
+}
+// minimal ZIP writer (stored, no compression: GIF and MP4 are already compressed)
+const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+const crc32 = a => { let c = 0xFFFFFFFF; for (let i = 0; i < a.length; i++) c = CRC[(c ^ a[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+async function makeZip(files){
+  const enc = new TextEncoder(), parts = [], central = []; let off = 0;
+  const u16 = v => [v & 255, (v >> 8) & 255], u32 = v => [v & 255, (v >> 8) & 255, (v >> 16) & 255, (v >>> 24) & 255];
+  const used = new Set();
+  for (const f of files) {
+    let nm = f.name, k = 2; while (used.has(nm)) nm = f.name.replace(/(\.[^.]+)$/, `-${k++}$1`); used.add(nm);
+    const name = enc.encode(nm), data = new Uint8Array(await f.blob.arrayBuffer()), crc = crc32(data), sz = data.length;
+    const head = [...u32(0x04034b50), ...u16(20), ...u16(0x0800), ...u16(0), ...u16(0), ...u16(0x21), ...u32(crc), ...u32(sz), ...u32(sz), ...u16(name.length), ...u16(0)];
+    parts.push(new Uint8Array(head), name, data);
+    central.push(new Uint8Array([...u32(0x02014b50), ...u16(20), ...u16(20), ...u16(0x0800), ...u16(0), ...u16(0), ...u16(0x21), ...u32(crc), ...u32(sz), ...u32(sz), ...u16(name.length), ...u16(0), ...u16(0), ...u16(0), ...u16(0), ...u32(0), ...u32(off)]), name);
+    off += head.length + name.length + sz;
+  }
+  const cdSize = central.reduce((a, p) => a + p.length, 0);
+  const end = new Uint8Array([...u32(0x06054b50), ...u16(0), ...u16(0), ...u16(files.length), ...u16(files.length), ...u32(cdSize), ...u32(off), ...u16(0)]);
+  return new Blob([...parts, ...central, end], { type:'application/zip' });
+}
+
+/* ---------- controls ---------- */
+function syncControls(){
+  const f = S.format;
+  [...$('formatSeg').children].forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === f)));
+  $('formatHint').textContent = f === 'gif'
+    ? 'For Google Slides: GIFs loop on their own in the grid.'
+    : 'For PowerPoint: full colour and much lighter. In Playback, set Start to Automatically and tick Loop until stopped.';
+  $('trimOn').checked = S.trim[f]; $('trimS').value = S.trimS; $('trimS').disabled = !S.trim[f];
+  $('trimCtl').classList.toggle('dim', !S.trim[f]);
+  $('trimSo').textContent = fmtS(S.trimS);
+  $('trimHint').textContent = f === 'gif'
+    ? 'Frames are copied exactly as they are, nothing is re-encoded. In a dense grid nobody watches a 20-second tile.'
+    : 'MP4 is already light, so the whole clip is kept unless you turn this on.';
+  $('widthOn').checked = S.width[f]; $('maxW').value = S.maxW; $('maxW').disabled = !S.width[f];
+  $('widthCtl').classList.toggle('dim', !S.width[f]);
+  $('maxWo').textContent = S.maxW + ' px';
+  $('lossyGroup').hidden = f !== 'gif';
+  $('lossyOn').checked = S.lossyOn; $('q').value = S.q; $('q').disabled = !S.lossyOn;
+  $('lossyCtl').classList.toggle('dim', !S.lossyOn);
+  $('qo').textContent = S.q + '%';
+  $('qHint').textContent = S.lossyOn ? GIFQ.describe(S.q) + '. Re-encodes every frame, so it can soften fine detail.' : 'Off keeps the frames exactly as they are. Turn on only if the files are still too heavy.';
+  for (const id of ['trimS', 'maxW', 'q']) { const i = $(id); i.style.setProperty('--p', ((i.value - i.min) / (i.max - i.min) * 100) + '%'); }
+}
+$('formatSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b || busy || b.dataset.v === S.format) return; S.format = b.dataset.v; persist(); syncControls(); invalidate(); });
+$('trimOn').addEventListener('change', e => { S.trim[S.format] = e.target.checked; persist(); syncControls(); invalidate(); });
+$('trimS').addEventListener('input', e => { S.trimS = +e.target.value; persist(); syncControls(); });
+$('trimS').addEventListener('change', invalidate);
+$('widthOn').addEventListener('change', e => { S.width[S.format] = e.target.checked; persist(); syncControls(); invalidate(); });
+$('maxW').addEventListener('input', e => { S.maxW = +e.target.value; persist(); syncControls(); });
+$('maxW').addEventListener('change', invalidate);
+$('lossyOn').addEventListener('change', e => { S.lossyOn = e.target.checked; persist(); syncControls(); invalidate(); });
+$('q').addEventListener('input', e => { S.q = +e.target.value; persist(); syncControls(); });
+$('q').addEventListener('change', invalidate);
+$('resetBtn').addEventListener('click', () => { if (busy) return; S = JSON.parse(JSON.stringify(DEFAULTS)); persist(); syncControls(); invalidate(); setStatus('Back to the defaults: GIF, first 6 s, shrink wider than 242 px.'); });
+$('goBtn').addEventListener('click', run);
+$('clearBtn').addEventListener('click', () => { if (busy) return; while (items.length) remove(items[0].id); setStatus(''); });
+$('zipBtn').addEventListener('click', async () => {
+  const done = items.filter(i => i.out); if (!done.length) return;
+  setStatus('Packing the zip…');
+  const zip = await makeZip(done.map(i => ({ name:i.out.name, blob:i.out.blob })));
+  await save(`gifpress-${done.length}-files.zip`, zip);
+});
+$('fileIn').addEventListener('change', e => { addFiles(e.target.files); e.target.value = ''; });
+$('cmpDl').addEventListener('click', () => { const it = items.find(i => i.id === sel); if (it && it.out) save(it.out.name, it.out.blob); });
+const drop = $('drop');
+['dragenter', 'dragover'].forEach(t => document.addEventListener(t, e => { if ([...(e.dataTransfer?.types || [])].includes('Files')) { e.preventDefault(); drop.classList.add('drag'); } }));
+['dragleave', 'drop'].forEach(t => document.addEventListener(t, e => { if (t === 'dragleave' && e.relatedTarget) return; drop.classList.remove('drag'); }));
+document.addEventListener('drop', e => { if (!e.dataTransfer?.files?.length) return; e.preventDefault(); addFiles(e.dataTransfer.files); });
+
+syncControls(); render();
+})();
+</script>
+</body>
+</html>

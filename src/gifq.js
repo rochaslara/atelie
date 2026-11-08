@@ -103,7 +103,7 @@ const GIFQ = (() => {
   }
   /* --- main --- */
   // getFrame(i, phase) -> RGBA bytes (top-down unless flipY). Returns a Blob, or null if cancelled.
-  async function encode({ w, h, n, delayCs = 5, transparent = false, quality = 80, dither = false, flipY = false,
+  async function encode({ w, h, n, delayCs = 5, delays = null, transparent = false, quality = 80, dither = false, flipY = false,
                           getFrame, onProgress = () => {}, isCancelled = () => false, paletteFrames = 12 }){
     const { colors, tol, lossy } = settings(quality);
     const tol2 = tol * tol * 9;
@@ -167,7 +167,7 @@ const GIFQ = (() => {
           }
         }
       }
-      const delay = delayCs;
+      const delay = delays ? delays[fi] : delayCs;     // per-frame delays (Gifpress keeps the source timing)
       if (!diff || fi === 0) {
         if (pending) write(pending);
         pending = pack(0, 0, w, h, cur.slice(), delay, true);
