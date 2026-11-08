@@ -1475,9 +1475,11 @@ function glyphState(it, gi, t){
 const bHash = (i, k) => { const x = Math.sin((i + 1) * 127.1 + k * 311.7 + (S.el.seed || 0) * 74.7) * 43758.5453; return x - Math.floor(x); };
 function bubbleBase(){ const W = cv.width, H = cv.height, m = Math.min(W, H); return {W, H, m, r0: m*(.07 + .15*S.s)}; }
 // Where each blob is at loop time t (0..1). Whole-number frequencies keep the loop seamless.
-function bubbleFrame(t){
+let bHold = null;   // {i, x, y}: the blob being dragged, pinned to the cursor (canvas px)
+function bubbleFrame(t, free){
   const {W, H, r0} = bubbleBase(), ph = Math.PI*2*t*S.speed, A = Math.min(W, H)*.075*S.a;
   return (S.bubbles || []).slice(0, 12).map((b, i) => {
+    if (!free && bHold && bHold.i === i) { const f = bubbleFrame(t, true)[i]; return Object.assign(f, {x: bHold.x, y: bHold.y}); }
     const kx = 1 + (bHash(i,1) > .55 ? 1 : 0), ky = 1 + (bHash(i,2) > .65 ? 1 : 0), p1 = bHash(i,3)*Math.PI*2, p2 = bHash(i,4)*Math.PI*2;
     const r = r0*(b.r || 1)*(1 + .035*S.a*Math.sin(ph*kx + p2));
     return { x: b.x*W + A*Math.sin(ph*kx + p1), y: b.y*H + A*.85*Math.cos(ph*ky + p2), r,
@@ -1742,14 +1744,26 @@ function buildStatic(){
   // drag element position on the artwork
   let dragging = false;
   const setPos = ev => { const r = cv.getBoundingClientRect(); S.el.posX = clamp01((ev.clientX - r.left)/r.width); S.el.posY = clamp01((ev.clientY - r.top)/r.height); syncers.forEach(f => f()); persist(); if (!playing) render(curT); };
-  let bDrag = null;
+  // Blob Text: grab a blob (even mid-float). It follows the cursor exactly; on release it keeps floating from that spot.
+  let bGrab = null;
   const bPt = ev => { const r = cv.getBoundingClientRect(); return [(ev.clientX - r.left)/r.width*cv.width, (ev.clientY - r.top)/r.height*cv.height]; };
-  cv.addEventListener('pointerdown', e => { if (S.preset !== 'btext') return; const [px, py] = bPt(e), fr = bubbleFrame(curT);
-    let hit = -1, hd = 1e9; fr.forEach((f, i) => { const d = Math.hypot(px - f.x, py - f.y); if (d < f.r*1.1 && d < hd) { hd = d; hit = i; } });
-    if (hit < 0) return; const f = fr[hit]; bDrag = {i:hit, dx:f.x - f.b.x*cv.width, dy:f.y - f.b.y*cv.height, ox:px - f.x, oy:py - f.y}; cv.setPointerCapture(e.pointerId); });
-  cv.addEventListener('pointermove', e => { if (!bDrag) return; const [px, py] = bPt(e), b = S.bubbles[bDrag.i]; if (!b) return;
-    b.x = clamp01((px - bDrag.ox - bDrag.dx)/cv.width); b.y = clamp01((py - bDrag.oy - bDrag.dy)/cv.height); persist(); if (!playing) render(curT); });
-  ['pointerup','pointercancel'].forEach(ev => cv.addEventListener(ev, () => bDrag = null));
+  const bHit = (px, py) => { const fr = bubbleFrame(curT); let hit = -1, hd = 1e9;
+    fr.forEach((f, i) => { const d = Math.hypot(px - f.x, py - f.y) / (f.r*(S.el.bstyle === 3 ? 1.35 + .4*(S.el.bsoft ?? .4) : 1.15)); if (d < 1 && d <= hd) { hd = d; hit = i; } });
+    return hit >= 0 ? fr[hit] : null; };
+  cv.addEventListener('pointerdown', e => { if (S.preset !== 'btext') return; const [px, py] = bPt(e), f = bHit(px, py);
+    if (!f) return; const i = S.bubbles.indexOf(f.b); bGrab = {i, ox: px - f.x, oy: py - f.y};
+    bHold = {i, x: f.x, y: f.y}; cv.setPointerCapture(e.pointerId); cv.style.cursor = 'grabbing'; e.preventDefault(); });
+  cv.addEventListener('pointermove', e => {
+    if (S.preset !== 'btext') { if (cv.style.cursor) cv.style.cursor = ''; return; }
+    const [px, py] = bPt(e);
+    if (!bGrab) { cv.style.cursor = bHit(px, py) ? 'grab' : ''; return; }
+    bHold.x = px - bGrab.ox; bHold.y = py - bGrab.oy; if (!playing) render(curT); });
+  const bDrop = () => { if (!bGrab) return; const b = S.bubbles[bGrab.i];
+    if (b) { const f = bubbleFrame(curT, true)[bGrab.i], W = cv.width, H = cv.height;   // move the resting point so the blob carries on from where it was dropped
+      b.x = clamp01(b.x + (bHold.x - f.x)/W); b.y = clamp01(b.y + (bHold.y - f.y)/H); }
+    bGrab = null; bHold = null; cv.style.cursor = 'grab'; persist(); if (!playing) render(curT); };
+  ['pointerup','pointercancel'].forEach(ev => cv.addEventListener(ev, bDrop));
+  cv.addEventListener('pointerleave', () => { if (!bGrab) cv.style.cursor = ''; });
   cv.addEventListener('pointerdown', e => { const E = P().elems; if (!E || !(E.pos || E.horizon || (E.ribbon && S.el.form > 0) || ((E.polka || E.gblob) && [2,3,6,7,8,9].includes(S.el.lw)))) return; dragging = true; cv.setPointerCapture(e.pointerId); setPos(e); });
   cv.addEventListener('pointermove', e => { if (dragging) setPos(e); });
   cv.addEventListener('pointerup', () => dragging = false);
@@ -2360,6 +2374,6 @@ async function initMy(){
 /* ================================================================ boot */
 buildStatic(); buildDynamic(); setFormat(); setPlaying(playing); loadFont();
 render(curT); updTime(); requestAnimationFrame(loop); initMy(); syncShape();
-window.__ts = {render, S, applyPreset, changed, setT: t => { curT = t; setPlaying(false); render(t); }};
+window.__ts = {render, S, applyPreset, changed, setT: t => { curT = t; setPlaying(false); render(t); }, bf: t => bubbleFrame(t ?? curT), play: () => setPlaying(true)};
 })();
 </script>
