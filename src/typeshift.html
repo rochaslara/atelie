@@ -408,7 +408,7 @@ const GB_MODES = ['Two-tone: type changes colour inside the shapes','Knock-out w
 const GMODES = ['Knock-out where it\'s bright','Gradient inside the type','Opposite colour of the gradient','My type colour','Difference (invert)'];
 const BG_TYPES = ['Horizon light bands','Gradient bands','Two-colour stripes','Checkerboard','Dots','Marble','Light bars'];
 const TYPE_MODES = ['Complementary (follows the colours)','My type colour','Inverted','Tonal (darker shade of the scene)'];
-const DEF_EL = {posX:.5, posY:.5, path:1, shape:0, travel:.6, count:4, angle:-30, amp:.5, freq:.4, spread:.5, twist:.4, seed:0, mode:0, spd:1, spin:0, szvar:.6, hue:1, tmode:0, mirror:1, bgt:0, mot:0, axis:0, curv:.7, lw:0, ncol:3, lsc:1, lsoft:.5, lwarp:.2, lmir:1, ribs:0, refr:.5, glt:1, gm:0, lspd:1, lcnt:5, sfill:2, gbm:0, thr:.45, tsoft:.08, inv:0, form:0, bsz:.55, wob:.5, swirl:.6, lop:.92, drops:4, tfront:1, inf:1, grow:1, gspd:1, bstyle:1, btc:1, bts:.8, bsway:.35, bshadow:.35};
+const DEF_EL = {posX:.5, posY:.5, path:1, shape:0, travel:.6, count:4, angle:-30, amp:.5, freq:.4, spread:.5, twist:.4, seed:0, mode:0, spd:1, spin:0, szvar:.6, hue:1, tmode:0, mirror:1, bgt:0, mot:0, axis:0, curv:.7, lw:0, ncol:3, lsc:1, lsoft:.5, lwarp:.2, lmir:1, ribs:0, refr:.5, glt:1, gm:0, lspd:1, lcnt:5, sfill:2, gbm:0, thr:.45, tsoft:.08, inv:0, form:0, bsz:.55, wob:.5, swirl:.6, lop:.92, drops:4, tfront:1, inf:1, grow:1, gspd:1, bstyle:1, btc:1, bts:.8, bsway:.35, bshadow:.35, bsoft:.4};
 const CURVE = {count:[1,8,'Ribbons'], curve:true};
 const PRESETS = [
   {id:'plain', name:'Plain', word:'Aa',
@@ -573,7 +573,7 @@ uniform vec2 uR; uniform float uT; uniform int uP; uniform float uA,uS,uV,uW,uSp
 uniform vec3 uBg,uFg,uC1,uC2; uniform sampler2D uTx,uIm,uSh; uniform float uHi; uniform vec2 uIs;
 uniform vec2 uLn[16]; uniform int uNl; uniform vec4 uBox;
 uniform vec2 uPos; uniform int uPath,uShape,uMode; uniform float uTr,uCnt,uAng,uAmp,uFrq,uSpr,uTw,uSeed,uSpd,uSpin,uSzv,uHue,uMir,uCurv; uniform int uTm,uBgt,uMot,uAxis,uTrn,uLw,uLcn,uGm; uniform vec3 uLcol[5]; uniform float uLang,uLsc,uLsoft,uLwarp,uLmir,uRibs,uRefr,uGlT,uLspd,uLcnt; uniform int uSfill; uniform vec3 uC5; uniform float uThr,uTs,uInv;
-uniform vec4 uBb[12]; uniform vec3 uBc[12]; uniform int uBn,uBst,uBtc; uniform float uBsh;
+uniform vec4 uBb[12]; uniform vec3 uBc[12]; uniform int uBn,uBst,uBtc; uniform float uBsh,uBsf;
 uniform int uForm,uGrow; uniform float uBsz,uWob,uSwirl,uLop,uDrops,uTfront,uInf,uGspd;
 in vec2 vUv; out vec4 oc;
 #define TAU 6.283185307
@@ -815,11 +815,18 @@ vec3 liquid(vec3 col,vec3 BG,vec2 p,vec2 uv,float asp,float ph){
   return col;
 }
 // BLOB TEXT: shade one blob. q = position inside the blob (-1..1), style 0 flat, 1 soft, 2 glossy, 3 glow
+// Edge of a blob as a gradient. uBsf (Edge softness) widens the fade; Glow fades over most of the blob.
+float balpha(float sd,float R,float aa){
+  float s=uBsf;
+  if(uBst==3){ float w=R*(.25+1.1*s); float core=R-.55*w; float x=max(sd+R-core,0.)/w; return exp(-x*x*2.3); }  // solid core, then a Gaussian fade that is half-way at the blob's edge
+  float f=R*.35*s*s;
+  return 1.-smoothstep(-aa-f*.6,aa+f,sd);
+}
 vec3 bshade(vec3 bc,vec2 q,int st){
   if(st==0) return bc;
   float r=clamp(length(q),0.,1.), z=sqrt(max(1.-r*r,0.));
   vec3 c=bc;
-  if(st==3) return mix(bc,min(bc*1.18+.10,vec3(1.)),pow(1.-r,1.6));
+  if(st==3) return mix(bc,min(bc*1.15+.08,vec3(1.)),pow(clamp(1.-r*.8,0.,1.),1.6));
   c=mix(bc*.86,min(bc*1.10+.05,vec3(1.)),smoothstep(.9,-.6,q.y*.8+q.x*.35)); // light from top-left
   c*=.92+.08*z;
   if(st==2){
@@ -845,7 +852,7 @@ vec3 scene(vec3 BG){
     for(int i=0;i<12;i++){ if(i>=uBn) break;
       vec4 b=uBb[i]; vec2 d=p-b.xy; float L=length(d); vec2 nd=d/max(L,1e-4); float sd0=b.w*7.31;
       float wob=snoise(vec3(nd*1.05+.42*vec2(cos(ph+sd0),sin(ph+sd0)),sd0))*.65+snoise(vec3(nd*2.1-.3*vec2(sin(ph+sd0),cos(ph+sd0)),sd0+3.1))*.35;
-      float R=b.z*(1.+uV*.15*wob);
+      float R=b.z*(1.+uV*(uBst==3?.06:.15)*wob);
       float sd=L-R; vec2 q=d/R;
       float sdsh=length(p-b.xy-vec2(.012,.03)*b.z*4.)-R;
       vec3 sc=bshade(uBc[i],q,uBst);
@@ -855,7 +862,7 @@ vec3 scene(vec3 BG){
         float w=exp(-clamp(sd/(mk*.7+aa*4.),-30.,30.)); wsum+=w; csum+=sc*w; bsum+=uBc[i]*w;
         if(-sd/R>dw){ dw=-sd/R; dom=sc; dR=R; dq=q; }
       } else {
-        float sa=uBst==3? 1.-smoothstep(-R*.45,R*.12,sd) : smoothstep(aa,-aa,sd);
+        float sa=balpha(sd,R,aa);
         // drop shadow under each blob
         c*=1.-uBsh*.32*(1.-smoothstep(-R*.1,R*.45,sdsh))*(uBst==3?.4:1.);
         c=mix(c,sc,sa);
@@ -865,7 +872,7 @@ vec3 scene(vec3 BG){
     if(mk>.001){
       vec3 mc=csum/max(wsum,1e-5);
       c*=1.-uBsh*.32*(1.-smoothstep(-.02,.09,sdS))*(uBst==3?.4:1.);
-      float sa=uBst==3? 1.-smoothstep(-.09,.03,sdm) : smoothstep(aa,-aa,sdm);
+      float sa=balpha(sdm,dR,aa);
       c=mix(c,mc,sa); dom=mc; domB=bsum/max(wsum,1e-5);
     }
     vec3 tcol=uFg;
@@ -1292,7 +1299,7 @@ const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
 gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
 gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1,3,-1,-1,3]), gl.STATIC_DRAW);
 gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
-const U = {}; ['uR','uT','uP','uA','uS','uV','uW','uSp','uGr','uFr','uBg','uFg','uC1','uC2','uTx','uIm','uHi','uIs','uLn','uNl','uBox','uPos','uPath','uShape','uTr','uCnt','uAng','uAmp','uFrq','uSpr','uTw','uSeed','uMode','uSpd','uSpin','uSzv','uHue','uMir','uTm','uBgt','uMot','uAxis','uCurv','uSh','uTrn','uLw','uLcn','uGm','uLcol','uLang','uLsc','uLsoft','uLwarp','uLmir','uRibs','uRefr','uGlT','uLspd','uLcnt','uSfill','uC5','uThr','uTs','uInv','uForm','uGrow','uBsz','uWob','uSwirl','uLop','uDrops','uTfront','uInf','uGspd','uBb','uBc','uBn','uBst','uBtc','uBsh'].forEach(n => U[n] = gl.getUniformLocation(prog, n));
+const U = {}; ['uR','uT','uP','uA','uS','uV','uW','uSp','uGr','uFr','uBg','uFg','uC1','uC2','uTx','uIm','uHi','uIs','uLn','uNl','uBox','uPos','uPath','uShape','uTr','uCnt','uAng','uAmp','uFrq','uSpr','uTw','uSeed','uMode','uSpd','uSpin','uSzv','uHue','uMir','uTm','uBgt','uMot','uAxis','uCurv','uSh','uTrn','uLw','uLcn','uGm','uLcol','uLang','uLsc','uLsoft','uLwarp','uLmir','uRibs','uRefr','uGlT','uLspd','uLcnt','uSfill','uC5','uThr','uTs','uInv','uForm','uGrow','uBsz','uWob','uSwirl','uLop','uDrops','uTfront','uInf','uGspd','uBb','uBc','uBn','uBst','uBtc','uBsh','uBsf'].forEach(n => U[n] = gl.getUniformLocation(prog, n));
 function mkTex(){ const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0,0,0,0])); return t; }
 const texText = mkTex(), texImg = mkTex(), texShape = mkTex();
 let img = null;
@@ -1495,7 +1502,7 @@ function bubbleUniforms(t){
   const fr = bubbleFrame(t), H = cv.height, bb = new Float32Array(48), bc = new Float32Array(36);
   fr.forEach((f, i) => { bb.set([f.x/H, f.y/H, f.r/H, bHash(i,5)], i*4); bc.set(hex(f.b.c || '#ff7a59'), i*3); });
   gl.uniform4fv(U.uBb, bb); gl.uniform3fv(U.uBc, bc); gl.uniform1i(U.uBn, fr.length);
-  gl.uniform1i(U.uBst, S.el.bstyle|0); gl.uniform1i(U.uBtc, S.el.btc|0); gl.uniform1f(U.uBsh, S.el.bshadow ?? .35);
+  gl.uniform1i(U.uBst, S.el.bstyle|0); gl.uniform1i(U.uBtc, S.el.btc|0); gl.uniform1f(U.uBsh, S.el.bshadow ?? .35); gl.uniform1f(U.uBsf, S.el.bsoft ?? .4);
 }
 function drawText(t){
   const W = cv.width, H = cv.height;
@@ -1788,6 +1795,7 @@ function buildBubbleUI(er){
   row.append(add, sh); er.appendChild(row);
   if (S.bubbles.length >= 12) { const h = document.createElement('p'); h.className = 'hint'; h.textContent = 'Up to 12 blobs.'; er.appendChild(h); }
   select(er, 'bstyle', 'Blob style', ['Flat','Soft','Glossy','Glow'], EL);
+  slider(er, 'bsoft', 'Edge softness', 0, 1, .01, pct, EL);
   slider(er, 'bshadow', 'Shadow', 0, 1, .01, pct, EL);
   select(er, 'btc', 'Text colour', ['Text colour (above)','Auto: black or white per blob'], EL);
   slider(er, 'bts', 'Text size', .3, 1.2, .01, pct, EL);
