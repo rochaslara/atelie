@@ -110,6 +110,14 @@ main{display:grid;grid-template-rows:minmax(0,1fr) auto;min-width:0;min-height:0
 .look:hover{border-color:var(--accent)}
 .look i{width:22px;height:22px;border-radius:4px;flex:none}
 .look span{font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.blist{display:grid;gap:8px}
+.bitem{display:grid;grid-template-columns:28px minmax(0,1fr) 28px;gap:8px;align-items:start;background:var(--ink-2);border:1px solid var(--line);border-radius:8px;padding:8px}
+.bitem input[type=color]{width:28px;height:28px;border:0;padding:0;background:none;border-radius:50%;cursor:pointer;overflow:hidden}
+.bitem input[type=color]::-webkit-color-swatch-wrapper{padding:0}.bitem input[type=color]::-webkit-color-swatch{border:1px solid var(--line);border-radius:50%}
+.bitem textarea{min-height:0;height:auto;resize:vertical;font-size:13px;padding:5px 7px;width:100%;box-sizing:border-box}
+.bitem .bsz{grid-column:2/3;display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--mute)}.bitem .bsz input{flex:1;min-width:0}
+.bitem .bx{width:28px;height:28px;border-radius:6px;border:1px solid var(--line);background:none;color:var(--mute);cursor:pointer;font-size:15px;line-height:1}
+.bitem .bx:hover{color:inherit;border-color:var(--mute)}.bitem .bx:disabled{opacity:.35;cursor:default}
 .subh{font:500 10px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--mute);padding-top:6px;border-top:1px dashed var(--line);margin-top:4px}
 .saverow{display:flex;gap:6px}
 .saverow input{flex:1;min-width:0}
@@ -172,7 +180,8 @@ main{display:grid;grid-template-rows:minmax(0,1fr) auto;min-width:0;min-height:0
     <section class="grp">
       <h2>Text</h2>
       <textarea id="txt" spellcheck="false" aria-label="Text, one line per row"></textarea>
-      <p class="hint">Add a line with <code>---</code> to start a new slide. Slides take turns across the loop, and entrance animations play on each one.</p>
+      <p class="hint" id="txtBub" hidden>In Blob Text, every blob has its own text. Edit it in the Blobs section below. Font, weight, case and line spacing here still apply.</p>
+      <p class="hint" id="txtSlides">Add a line with <code>---</code> to start a new slide. Slides take turns across the loop, and entrance animations play on each one.</p>
       <div class="row">
         <div class="lab"><label for="cap">Caption (small corner text)</label></div>
         <textarea id="cap" class="cap" spellcheck="false" placeholder="e.g. 18.02 / 2023"></textarea>
@@ -399,7 +408,7 @@ const GB_MODES = ['Two-tone: type changes colour inside the shapes','Knock-out w
 const GMODES = ['Knock-out where it\'s bright','Gradient inside the type','Opposite colour of the gradient','My type colour','Difference (invert)'];
 const BG_TYPES = ['Horizon light bands','Gradient bands','Two-colour stripes','Checkerboard','Dots','Marble','Light bars'];
 const TYPE_MODES = ['Complementary (follows the colours)','My type colour','Inverted','Tonal (darker shade of the scene)'];
-const DEF_EL = {posX:.5, posY:.5, path:1, shape:0, travel:.6, count:4, angle:-30, amp:.5, freq:.4, spread:.5, twist:.4, seed:0, mode:0, spd:1, spin:0, szvar:.6, hue:1, tmode:0, mirror:1, bgt:0, mot:0, axis:0, curv:.7, lw:0, ncol:3, lsc:1, lsoft:.5, lwarp:.2, lmir:1, ribs:0, refr:.5, glt:1, gm:0, lspd:1, lcnt:5, sfill:2, gbm:0, thr:.45, tsoft:.08, inv:0, form:0, bsz:.55, wob:.5, swirl:.6, lop:.92, drops:4, tfront:1, inf:1, grow:1, gspd:1};
+const DEF_EL = {posX:.5, posY:.5, path:1, shape:0, travel:.6, count:4, angle:-30, amp:.5, freq:.4, spread:.5, twist:.4, seed:0, mode:0, spd:1, spin:0, szvar:.6, hue:1, tmode:0, mirror:1, bgt:0, mot:0, axis:0, curv:.7, lw:0, ncol:3, lsc:1, lsoft:.5, lwarp:.2, lmir:1, ribs:0, refr:.5, glt:1, gm:0, lspd:1, lcnt:5, sfill:2, gbm:0, thr:.45, tsoft:.08, inv:0, form:0, bsz:.55, wob:.5, swirl:.6, lop:.92, drops:4, tfront:1, inf:1, grow:1, gspd:1, bstyle:1, btc:1, bts:.8, bsway:.35, bshadow:.35};
 const CURVE = {count:[1,8,'Ribbons'], curve:true};
 const PRESETS = [
   {id:'plain', name:'Plain', word:'Aa',
@@ -475,6 +484,15 @@ const PRESETS = [
    fx:{a:.55,s:.55,v:.1,w:0}, col:{bg:'#e7e7e5', fg:'#1534e0', c1:'#1534e0', c2:'#e48ae6'},
    labels:{a:'Motion amount', s:'Shape size', v:'Softness', w:'Cover text'}, clabels:{bg:'Background', fg:'Type', c1:'Shapes', c2:'Type on shape'},
    el:{count:3, seed:.2, shape:0, mode:0, angle:-90, spd:1, spin:0, szvar:.6}, elems:{title:'Shapes', shape:BLOB_SHAPES, motion:true, count:[1,16,'Count'], seed:true}},
+  {id:'btext', name:'Blob Text', word:'HI', isNew:true,
+   desc:'Soft floating blobs, each holding its own text. Write the text and pick the colour of every blob below, and drag blobs on the artwork to place them.',
+   text:'BLOB TEXT', font:'Inter Tight', weight:700, italic:false, upper:true,
+   layout:'block', align:'center', size:10, tracking:-20, leading:.95, margin:6, grain:.06,
+   fx:{a:.5,s:.55,v:.45,w:0}, col:{bg:'#f2ede6', fg:'#161616', c1:'#ff7a59', c2:'#8fb8ff'},
+   labels:{a:'Float', s:'Blob size', v:'Wobble', w:'Merge when touching'}, clabels:{bg:'Background', fg:'Text'},
+   el:{bstyle:1, btc:1, bts:.8, bsway:.35, bshadow:.35},
+   bubbles:[{t:'HELLO',c:'#ff7a59',x:.3,y:.27,r:1.05},{t:'FLOAT\nON',c:'#8fb8ff',x:.71,y:.37,r:1},{t:'SOFT\nSHAPES',c:'#f4c95d',x:.35,y:.66,r:1.15},{t:'YES',c:'#c4a3f2',x:.74,y:.76,r:.8}],
+   elems:{title:'Blobs', bubbles:true}},
   {id:'gblob', name:'Blob Studio', word:'DE B', isNew:true,
    desc:'Gradient Studio backgrounds whose colour shapes drive the type: inside a shape the letters switch to a second colour. Pick a background preset and the two type colours.',
    text:'SOMOS\nCOLOR\nEM MOVIMENTO', font:'Oswald', weight:700, italic:false, upper:true,
@@ -524,7 +542,7 @@ const PRESETS = [
    labels:{a:'Spin', s:'Points', v:'Inner radius', w:'Size'}, clabels:{bg:'Background', fg:'Type', c1:'Burst', c2:'Overlap'},
    el:{path:0, travel:.3, shape:0}, elems:{title:'Burst shape', shape:BURST_SHAPES, pos:true, path:true}},
 ];
-const SHADER_ID = {plain:-1, smear:0, pulse:1, led:2, lens:3, ribbon:4, liquid:4, mask:5, focus:6, blobs:7, burst:8, polka:9, silk:10, horizon:11, spin:11, drum:11, gblob:12};
+const SHADER_ID = {plain:-1, smear:0, pulse:1, led:2, lens:3, ribbon:4, liquid:4, mask:5, focus:6, blobs:7, burst:8, polka:9, silk:10, horizon:11, spin:11, drum:11, gblob:12, btext:13};
 
 const FONT_LIST = ['Abril Fatface','Afacad','Albert Sans','Alegreya','Alegreya Sans','Alfa Slab One','Alice','Amatic SC','Anek Latin','Anton','Anybody','Archivo','Archivo Black','Archivo Narrow','Arimo','Arvo','Asap','Assistant','Atkinson Hyperlegible','Azeret Mono','Bagel Fat One','Barlow','Barlow Condensed','Barlow Semi Condensed','Be Vietnam Pro','Bebas Neue','Belleza','Big Shoulders Display','Big Shoulders Stencil Display','Bitter','Bodoni Moda','Bowlby One','Bowlby One SC','Bricolage Grotesque','Bungee','Bungee Shade','Cabin','Cardo','Caveat','Chakra Petch','Chivo','Chivo Mono','Cinzel','Climate Crisis','Comfortaa','Commissioner','Cormorant','Cormorant Garamond','Crimson Pro','Crimson Text','DM Mono','DM Sans','DM Serif Display','DM Serif Text','Darker Grotesque','Dela Gothic One','DotGothic16','EB Garamond','Epilogue','Exo 2','Familjen Grotesk','Figtree','Fira Code','Fira Sans','Fira Sans Condensed','Fjalla One','Fraunces','Funnel Display','Funnel Sans','Gantari','Geist','Geist Mono','Gloock','Golos Text','Gothic A1','Grenze Gotisch','Hanken Grotesk','Heebo','Hind','IBM Plex Mono','IBM Plex Sans','IBM Plex Sans Condensed','IBM Plex Serif','Inconsolata','Instrument Sans','Instrument Serif','Inter','Inter Tight','Italiana','JetBrains Mono','Josefin Sans','Jost','Kanit','Karla','Krona One','Kumbh Sans','Lato','League Gothic','League Spartan','Lexend','Libre Baskerville','Libre Bodoni','Libre Caslon Display','Libre Caslon Text','Libre Franklin','Limelight','Lora','Major Mono Display','Manrope','Marcellus','Martian Mono','Merriweather','Michroma','Monoton','Montserrat','Mulish','Newsreader','Noto Sans','Noto Serif','Noto Serif Display','Nunito','Nunito Sans','Old Standard TT','Onest','Open Sans','Oswald','Outfit','Overpass','Oxanium','Pathway Extreme','Permanent Marker','Petrona','Pixelify Sans','Playfair','Playfair Display','Plus Jakarta Sans','Poiret One','Poppins','Prata','Press Start 2P','PT Sans','PT Serif','Public Sans','Quicksand','Radio Canada','Raleway','Red Hat Display','Red Hat Mono','Reddit Mono','Reddit Sans','Roboto','Roboto Condensed','Roboto Flex','Roboto Mono','Roboto Serif','Roboto Slab','Rozha One','Rubik','Rubik Glitch','Rubik Mono One','Rufina','Saira','Saira Condensed','Schibsted Grotesk','Shippori Mincho','Shrikhand','Silkscreen','Six Caps','Sometype Mono','Sora','Source Code Pro','Source Sans 3','Source Serif 4','Space Grotesk','Space Mono','Spectral','Squada One','Staatliches','Syne','Syne Mono','Tenor Sans','Tilt Warp','Titan One','Titillium Web','Ubuntu','Ultra','Unbounded','Urbanist','VT323','Vollkorn','Wix Madefor Display','Work Sans','Yeseva One','Young Serif','Ysabeau','Zen Old Mincho','Zilla Slab'];
 
@@ -536,6 +554,7 @@ function presetState(p){
     a:p.fx.a, s:p.fx.s, v:p.fx.v, w:p.fx.w, speed:1, grain:p.grain ?? 0,
     bg:p.col.bg, fg:p.col.fg, c1:p.col.c1, c2:p.col.c2, c3:p.col.c3 || '#ffc300', c4:p.col.c4 || '#2a40c4', c5:p.col.c5 || '#ffffff', el:Object.assign({}, DEF_EL, p.el || {})};
 }
+const BUB_DEF = () => JSON.parse(JSON.stringify(PRESETS.find(p => p.id === 'btext').bubbles));
 let S = Object.assign({format:'1080x1350', duration:4, textEdited:false, vpos:.5, trn:0}, DEF_ANIM, presetState(PRESETS.find(p => p.id === 'lens')));
 try { const saved = JSON.parse(localStorage.getItem('typeshift-v2') || 'null'); if (saved && saved.preset && PRESETS.some(p => p.id === saved.preset)) { S = Object.assign(S, saved); S.el = Object.assign({}, DEF_EL, saved.el || {}); } } catch (e) {}
 const P = () => PRESETS.find(p => p.id === S.preset) || PRESETS[0];
@@ -554,6 +573,7 @@ uniform vec2 uR; uniform float uT; uniform int uP; uniform float uA,uS,uV,uW,uSp
 uniform vec3 uBg,uFg,uC1,uC2; uniform sampler2D uTx,uIm,uSh; uniform float uHi; uniform vec2 uIs;
 uniform vec2 uLn[16]; uniform int uNl; uniform vec4 uBox;
 uniform vec2 uPos; uniform int uPath,uShape,uMode; uniform float uTr,uCnt,uAng,uAmp,uFrq,uSpr,uTw,uSeed,uSpd,uSpin,uSzv,uHue,uMir,uCurv; uniform int uTm,uBgt,uMot,uAxis,uTrn,uLw,uLcn,uGm; uniform vec3 uLcol[5]; uniform float uLang,uLsc,uLsoft,uLwarp,uLmir,uRibs,uRefr,uGlT,uLspd,uLcnt; uniform int uSfill; uniform vec3 uC5; uniform float uThr,uTs,uInv;
+uniform vec4 uBb[8]; uniform vec3 uBc[8]; uniform int uBn,uBst,uBtc; uniform float uBsh;
 uniform int uForm,uGrow; uniform float uBsz,uWob,uSwirl,uLop,uDrops,uTfront,uInf,uGspd;
 in vec2 vUv; out vec4 oc;
 #define TAU 6.283185307
@@ -794,6 +814,21 @@ vec3 liquid(vec3 col,vec3 BG,vec2 p,vec2 uv,float asp,float ph){
   if(uTfront>.5) col=mix(col,uFg,txc(uv));
   return col;
 }
+// BLOB TEXT: shade one blob. q = position inside the blob (-1..1), style 0 flat, 1 soft, 2 glossy, 3 glow
+vec3 bshade(vec3 bc,vec2 q,int st){
+  if(st==0) return bc;
+  float r=clamp(length(q),0.,1.), z=sqrt(max(1.-r*r,0.));
+  vec3 c=bc;
+  if(st==3) return mix(bc,min(bc*1.18+.10,vec3(1.)),pow(1.-r,1.6));
+  c=mix(bc*.86,min(bc*1.10+.05,vec3(1.)),smoothstep(.9,-.6,q.y*.8+q.x*.35)); // light from top-left
+  c*=.92+.08*z;
+  if(st==2){
+    c+=exp(-pow(length(q-vec2(-.36,-.42))/.22,2.))*.55;      // specular spot
+    c+=exp(-pow((r-.9)/.06,2.))*smoothstep(.2,1.,q.y)*.18;    // rim light, lower edge
+    c=mix(c,vec3(1.),pow(1.-z,4.)*.12);
+  }
+  return clamp(c,0.,1.);
+}
 vec3 scene(vec3 BG){
   vec2 uv=vec2(vUv.x,1.-vUv.y);
   float asp=uR.x/uR.y; vec2 p=vec2(uv.x*asp,uv.y);
@@ -803,6 +838,40 @@ vec3 scene(vec3 BG){
   vec2 ep=vec2(uPos.x*asp,uPos.y);
 
   if(uP<0){ col=mix(BG,uFg,txc(uv)); }
+  else if(uP==13){ // BLOB TEXT
+    float aa=1.5/uR.y, mk=uW*.09;
+    float sdm=1e3, sdS=1e3, wsum=0.; vec3 csum=vec3(0.); vec3 dom=BG; float dw=-1e9, dR=1.; vec2 dq=vec2(0.);
+    vec3 c=BG; vec3 domB=BG; vec3 bsum=vec3(0.);
+    for(int i=0;i<8;i++){ if(i>=uBn) break;
+      vec4 b=uBb[i]; vec2 d=p-b.xy; float L=length(d); vec2 nd=d/max(L,1e-4); float sd0=b.w*7.31;
+      float wob=snoise(vec3(nd*1.05+.42*vec2(cos(ph+sd0),sin(ph+sd0)),sd0))*.65+snoise(vec3(nd*2.1-.3*vec2(sin(ph+sd0),cos(ph+sd0)),sd0+3.1))*.35;
+      float R=b.z*(1.+uV*.15*wob);
+      float sd=L-R; vec2 q=d/R;
+      float sdsh=length(p-b.xy-vec2(.012,.03)*b.z*4.)-R;
+      vec3 sc=bshade(uBc[i],q,uBst);
+      if(mk>.001){
+        float h=clamp(.5+.5*(sdm-sd)/mk,0.,1.); sdm=mix(sdm,sd,h)-mk*h*(1.-h);
+        float hs=clamp(.5+.5*(sdS-sdsh)/mk,0.,1.); sdS=mix(sdS,sdsh,hs)-mk*hs*(1.-hs);
+        float w=exp(-clamp(sd/(mk*.7+aa*4.),-30.,30.)); wsum+=w; csum+=sc*w; bsum+=uBc[i]*w;
+        if(-sd/R>dw){ dw=-sd/R; dom=sc; dR=R; dq=q; }
+      } else {
+        float sa=uBst==3? 1.-smoothstep(-R*.45,R*.12,sd) : smoothstep(aa,-aa,sd);
+        // drop shadow under each blob
+        c*=1.-uBsh*.32*(1.-smoothstep(-R*.1,R*.45,sdsh))*(uBst==3?.4:1.);
+        c=mix(c,sc,sa);
+        if(sa>.5){ dom=sc; domB=uBc[i]; }
+      }
+    }
+    if(mk>.001){
+      vec3 mc=csum/max(wsum,1e-5);
+      c*=1.-uBsh*.32*(1.-smoothstep(-.02,.09,sdS))*(uBst==3?.4:1.);
+      float sa=uBst==3? 1.-smoothstep(-.09,.03,sdm) : smoothstep(aa,-aa,sdm);
+      c=mix(c,mc,sa); dom=mc; domB=bsum/max(wsum,1e-5);
+    }
+    vec3 tcol=uFg;
+    if(uBtc==1){ float lu=dot(domB,vec3(.299,.587,.114)); tcol=lu>.6? vec3(.09) : vec3(1.); }
+    col=mix(c,tcol,txc(uv));
+  }
   else if(uP==0){ // SMEAR
     int row=-1;
     for(int i=0;i<16;i++){ if(i>=uNl) break; if(uv.y>=uLn[i].x && uv.y<uLn[i].y) row=i; }
@@ -1223,7 +1292,7 @@ const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
 gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
 gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1,3,-1,-1,3]), gl.STATIC_DRAW);
 gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
-const U = {}; ['uR','uT','uP','uA','uS','uV','uW','uSp','uGr','uFr','uBg','uFg','uC1','uC2','uTx','uIm','uHi','uIs','uLn','uNl','uBox','uPos','uPath','uShape','uTr','uCnt','uAng','uAmp','uFrq','uSpr','uTw','uSeed','uMode','uSpd','uSpin','uSzv','uHue','uMir','uTm','uBgt','uMot','uAxis','uCurv','uSh','uTrn','uLw','uLcn','uGm','uLcol','uLang','uLsc','uLsoft','uLwarp','uLmir','uRibs','uRefr','uGlT','uLspd','uLcnt','uSfill','uC5','uThr','uTs','uInv','uForm','uGrow','uBsz','uWob','uSwirl','uLop','uDrops','uTfront','uInf','uGspd'].forEach(n => U[n] = gl.getUniformLocation(prog, n));
+const U = {}; ['uR','uT','uP','uA','uS','uV','uW','uSp','uGr','uFr','uBg','uFg','uC1','uC2','uTx','uIm','uHi','uIs','uLn','uNl','uBox','uPos','uPath','uShape','uTr','uCnt','uAng','uAmp','uFrq','uSpr','uTw','uSeed','uMode','uSpd','uSpin','uSzv','uHue','uMir','uTm','uBgt','uMot','uAxis','uCurv','uSh','uTrn','uLw','uLcn','uGm','uLcol','uLang','uLsc','uLsoft','uLwarp','uLmir','uRibs','uRefr','uGlT','uLspd','uLcnt','uSfill','uC5','uThr','uTs','uInv','uForm','uGrow','uBsz','uWob','uSwirl','uLop','uDrops','uTfront','uInf','uGspd','uBb','uBc','uBn','uBst','uBtc','uBsh'].forEach(n => U[n] = gl.getUniformLocation(prog, n));
 function mkTex(){ const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0,0,0,0])); return t; }
 const texText = mkTex(), texImg = mkTex(), texShape = mkTex();
 let img = null;
@@ -1395,9 +1464,43 @@ function glyphState(it, gi, t){
   return g;
 }
 
+/* ---------------------------------------------------------------- Blob Text */
+const bHash = (i, k) => { const x = Math.sin((i + 1) * 127.1 + k * 311.7 + (S.el.seed || 0) * 74.7) * 43758.5453; return x - Math.floor(x); };
+function bubbleBase(){ const W = cv.width, H = cv.height, m = Math.min(W, H); return {W, H, m, r0: m*(.07 + .15*S.s)}; }
+// Where each blob is at loop time t (0..1). Whole-number frequencies keep the loop seamless.
+function bubbleFrame(t){
+  const {W, H, r0} = bubbleBase(), ph = Math.PI*2*t*S.speed, A = Math.min(W, H)*.075*S.a;
+  return (S.bubbles || []).slice(0, 8).map((b, i) => {
+    const kx = 1 + (bHash(i,1) > .55 ? 1 : 0), ky = 1 + (bHash(i,2) > .65 ? 1 : 0), p1 = bHash(i,3)*Math.PI*2, p2 = bHash(i,4)*Math.PI*2;
+    const r = r0*(b.r || 1)*(1 + .035*S.a*Math.sin(ph*kx + p2));
+    return { x: b.x*W + A*Math.sin(ph*kx + p1), y: b.y*H + A*.85*Math.cos(ph*ky + p2), r,
+             tilt: (S.el.bsway || 0)*.13*Math.sin(ph*ky + p1), b };
+  });
+}
+function drawBubbleText(t){
+  const fr = bubbleFrame(t);
+  for (const f of fr) {
+    const lines = String(f.b.t || '').split('\n').map(l => S.upper ? l.toUpperCase() : l).filter((l, i, a) => l.length || a.length === 1);
+    if (!lines.join('').trim()) continue;
+    setF(100); const wm = Math.max(1, ...lines.map(l => tx.measureText(l).width)), lh = 100*Math.max(.8, S.leading);
+    const px = Math.max(4, 1.78*f.r*100/Math.hypot(wm, lh*lines.length) * (S.el.bts || .8));
+    setF(px); tx.textAlign = 'center'; tx.textBaseline = 'middle';
+    tx.setTransform(1, 0, 0, 1, f.x, f.y); tx.rotate(f.tilt);
+    const L = px*Math.max(.8, S.leading), y0 = -(lines.length - 1)*L/2;
+    lines.forEach((l, i) => tx.fillText(l, 0, y0 + i*L + px*.04));
+  }
+  tx.setTransform(1, 0, 0, 1, 0, 0); tx.textAlign = 'left'; tx.textBaseline = 'alphabetic';
+}
+function bubbleUniforms(t){
+  const fr = bubbleFrame(t), H = cv.height, bb = new Float32Array(32), bc = new Float32Array(24);
+  fr.forEach((f, i) => { bb.set([f.x/H, f.y/H, f.r/H, bHash(i,5)], i*4); bc.set(hex(f.b.c || '#ff7a59'), i*3); });
+  gl.uniform4fv(U.uBb, bb); gl.uniform3fv(U.uBc, bc); gl.uniform1i(U.uBn, fr.length);
+  gl.uniform1i(U.uBst, S.el.bstyle|0); gl.uniform1i(U.uBtc, S.el.btc|0); gl.uniform1f(U.uBsh, S.el.bshadow ?? .35);
+}
 function drawText(t){
   const W = cv.width, H = cv.height;
   tx.setTransform(1,0,0,1,0,0); tx.clearRect(0, 0, W, H); tx.fillStyle = '#fff'; tx.globalAlpha = 1;
+  if (S.preset === 'btext') { drawBubbleText(curBT); return uploadText(); }
   const anim = S.anim !== 'none';
   for (const it of L.items) {
     if (!it.chars.length) continue;
@@ -1438,6 +1541,9 @@ function drawText(t){
     c.lines.forEach((ln, i) => tx.fillText(S.upper ? ln.toUpperCase() : ln, c.x, c.y + i*c.lh));
     tx.textAlign = 'left';
   }
+  uploadText();
+}
+function uploadText(){
   gl.bindTexture(gl.TEXTURE_2D, texText);
   gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false); gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, tc);
@@ -1458,12 +1564,14 @@ function hexToOklab(hx){
 const hex = h => { const n = parseInt(h.slice(1), 16); return [(n>>16&255)/255, (n>>8&255)/255, (n&255)/255]; };
 let dirtyLayout = true, dirtyText = true, Ls = [], lastSi = -1, forceOpaque = false;
 const slidesOf = txt => { const sl = (txt || ' ').split(/\n\s*-{3,}\s*(?:\n|$)/).filter(x => x.trim().length); return sl.length ? sl : [' ']; };
+let curBT = 0;
 function render(t){
   if (dirtyLayout) { Ls = slidesOf(S.text).map(buildLayout); dirtyLayout = false; dirtyText = true; }
   t = ((+t || 0) % 1 + 1) % 1;
   const nS = Ls.length, si = Math.max(0, Math.min(nS - 1, Math.floor(t*nS))), tl = (t*nS) % 1;
   L = Ls[si]; lines = L.lines; box = L.box;
-  if (dirtyText || S.anim !== 'none' || si !== lastSi) { drawText(tl); dirtyText = false; lastSi = si; }
+  curBT = t;
+  if (dirtyText || S.anim !== 'none' || si !== lastSi || S.preset === 'btext') { drawText(tl); dirtyText = false; lastSi = si; }
   gl.viewport(0, 0, cv.width, cv.height);
   gl.uniform2f(U.uR, cv.width, cv.height);
   gl.uniform1f(U.uT, t);
@@ -1486,6 +1594,7 @@ function render(t){
     gl.uniform1f(U.uLmir, e.lmir); gl.uniform1f(U.uRibs, e.ribs); gl.uniform1f(U.uRefr, e.refr); gl.uniform1f(U.uGlT, e.glt);
     gl.uniform1f(U.uLspd, e.lspd); gl.uniform1f(U.uLcnt, e.lcnt); gl.uniform1i(U.uSfill, e.sfill); gl.uniform3fv(U.uC5, hex(S.c5 || '#ffffff')); }
   gl.uniform1i(U.uForm, e.form|0); gl.uniform1i(U.uGrow, e.grow|0); gl.uniform1f(U.uBsz, e.bsz); gl.uniform1f(U.uWob, e.wob); gl.uniform1f(U.uSwirl, e.swirl); gl.uniform1f(U.uLop, e.lop); gl.uniform1f(U.uDrops, e.drops); gl.uniform1f(U.uTfront, e.tfront); gl.uniform1f(U.uInf, e.inf); gl.uniform1f(U.uGspd, e.gspd);
+  if (S.preset === 'btext') bubbleUniforms(t);
   gl.uniform1i(U.uBgt, e.bgt); gl.uniform1i(U.uMot, e.mot); gl.uniform1i(U.uAxis, e.axis); gl.uniform1f(U.uCurv, e.curv);
   gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, texText); gl.uniform1i(U.uTx, 0);
   gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, texImg); gl.uniform1i(U.uIm, 1);
@@ -1626,6 +1735,14 @@ function buildStatic(){
   // drag element position on the artwork
   let dragging = false;
   const setPos = ev => { const r = cv.getBoundingClientRect(); S.el.posX = clamp01((ev.clientX - r.left)/r.width); S.el.posY = clamp01((ev.clientY - r.top)/r.height); syncers.forEach(f => f()); persist(); if (!playing) render(curT); };
+  let bDrag = null;
+  const bPt = ev => { const r = cv.getBoundingClientRect(); return [(ev.clientX - r.left)/r.width*cv.width, (ev.clientY - r.top)/r.height*cv.height]; };
+  cv.addEventListener('pointerdown', e => { if (S.preset !== 'btext') return; const [px, py] = bPt(e), fr = bubbleFrame(curT);
+    let hit = -1, hd = 1e9; fr.forEach((f, i) => { const d = Math.hypot(px - f.x, py - f.y); if (d < f.r*1.1 && d < hd) { hd = d; hit = i; } });
+    if (hit < 0) return; const f = fr[hit]; bDrag = {i:hit, dx:f.x - f.b.x*cv.width, dy:f.y - f.b.y*cv.height, ox:px - f.x, oy:py - f.y}; cv.setPointerCapture(e.pointerId); });
+  cv.addEventListener('pointermove', e => { if (!bDrag) return; const [px, py] = bPt(e), b = S.bubbles[bDrag.i]; if (!b) return;
+    b.x = clamp01((px - bDrag.ox - bDrag.dx)/cv.width); b.y = clamp01((py - bDrag.oy - bDrag.dy)/cv.height); persist(); if (!playing) render(curT); });
+  ['pointerup','pointercancel'].forEach(ev => cv.addEventListener(ev, () => bDrag = null));
   cv.addEventListener('pointerdown', e => { const E = P().elems; if (!E || !(E.pos || E.horizon || (E.ribbon && S.el.form > 0) || ((E.polka || E.gblob) && [2,3,6,7,8,9].includes(S.el.lw)))) return; dragging = true; cv.setPointerCapture(e.pointerId); setPos(e); });
   cv.addEventListener('pointermove', e => { if (dragging) setPos(e); });
   cv.addEventListener('pointerup', () => dragging = false);
@@ -1633,6 +1750,49 @@ function buildStatic(){
 }
 
 /* ================================================================ preset-dependent UI */
+// Blob Text controls: one row per blob (colour, text, size), add/remove, style and text options
+function freeSpot(){
+  const fr = bubbleFrame(curT), {W, H} = bubbleBase(); let best = [.5, .5], bd = -1;
+  for (let gy = 0; gy < 9; gy++) for (let gx = 0; gx < 9; gx++) {
+    const x = .15 + gx*.7/8, y = .15 + gy*.7/8; let d = Math.min(x, 1 - x, y, 1 - y)*Math.min(W, H)*1.3;
+    fr.forEach(f => d = Math.min(d, Math.hypot(x*W - f.x, y*H - f.y) - f.r));
+    if (d > bd) { bd = d; best = [x, y]; }
+  }
+  return best;
+}
+const BUB_COLS = ['#ff7a59','#8fb8ff','#f4c95d','#c4a3f2','#7fd8a6','#ff9fc8','#5b6cff','#ffd2a6'];
+function buildBubbleUI(er){
+  if (!Array.isArray(S.bubbles) || !S.bubbles.length) S.bubbles = BUB_DEF();
+  const list = document.createElement('div'); list.className = 'blist'; er.appendChild(list);
+  const redraw = () => { persist(); if (!playing) render(curT); };
+  S.bubbles.forEach((b, i) => {
+    const it = document.createElement('div'); it.className = 'bitem';
+    it.innerHTML = `<input type="color" id="bc_${i}" aria-label="Blob ${i+1} colour"><textarea id="bt_${i}" rows="${Math.min(3, Math.max(1, String(b.t).split('\n').length))}" spellcheck="false" aria-label="Blob ${i+1} text" placeholder="Text"></textarea>
+      <button class="bx" type="button" aria-label="Remove blob ${i+1}" title="Remove blob">×</button>
+      <label class="bsz" for="br_${i}">Size<input type="range" id="br_${i}" min=".4" max="1.8" step=".01"></label>`;
+    const c = it.querySelector('input[type=color]'), ta = it.querySelector('textarea'), r = it.querySelector('input[type=range]'), x = it.querySelector('.bx');
+    c.value = b.c; ta.value = b.t; r.value = b.r || 1; x.disabled = S.bubbles.length <= 1;
+    const fill = () => r.style.setProperty('--p', ((r.value - .4)/1.4*100) + '%'); fill();
+    c.addEventListener('input', () => { b.c = c.value; redraw(); });
+    ta.addEventListener('input', () => { b.t = ta.value; ta.rows = Math.min(3, Math.max(1, ta.value.split('\n').length)); redraw(); });
+    r.addEventListener('input', () => { b.r = +r.value; fill(); redraw(); });
+    x.addEventListener('click', () => { S.bubbles.splice(i, 1); buildDynamic(); redraw(); });
+    list.appendChild(it);
+  });
+  const row = document.createElement('div'); row.className = 'toggles';
+  const add = document.createElement('button'); add.type = 'button'; add.className = 'btn small'; add.textContent = '+ Add blob'; add.disabled = S.bubbles.length >= 8;
+  add.addEventListener('click', () => { const [x, y] = freeSpot(); const used = S.bubbles.map(b => b.c);
+    S.bubbles.push({t:'NEW', c:BUB_COLS.find(c => !used.includes(c)) || BUB_COLS[S.bubbles.length % 8], x, y, r:.9}); buildDynamic(); redraw(); });
+  const sh = document.createElement('button'); sh.type = 'button'; sh.className = 'btn small'; sh.textContent = 'Shuffle float';
+  sh.addEventListener('click', () => { S.el.seed = Math.round(Math.random()*1000)/1000; redraw(); });
+  row.append(add, sh); er.appendChild(row);
+  if (S.bubbles.length >= 8) { const h = document.createElement('p'); h.className = 'hint'; h.textContent = 'Up to 8 blobs.'; er.appendChild(h); }
+  select(er, 'bstyle', 'Blob style', ['Flat','Soft','Glossy','Glow'], EL);
+  slider(er, 'bshadow', 'Shadow', 0, 1, .01, pct, EL);
+  select(er, 'btc', 'Text colour', ['Text colour (above)','Auto: black or white per blob'], EL);
+  slider(er, 'bts', 'Text size', .3, 1.2, .01, pct, EL);
+  slider(er, 'bsway', 'Text sway', 0, 1, .01, pct, EL);
+}
 function buildDynamic(){
   const p = P();
   syncers.length = 0; syncers.push(...staticSyncers);
@@ -1655,6 +1815,7 @@ function buildDynamic(){
   if (ed) {
     $('elTitle').textContent = ed.title || 'Element';
     if (ed.shape) select(er, 'shape', 'Shape', ed.shape, EL);
+    if (ed.bubbles) buildBubbleUI(er);
     const subh = t => { const d = document.createElement('div'); d.className = 'subh'; d.textContent = t; er.appendChild(d); };
     if (ed.ribbon) {
       select(er, 'form', 'Form', ['Glass ribbons','Liquid blob','Ribbons + liquid blob'], EL).querySelector('select').addEventListener('change', () => buildDynamic());
@@ -1791,8 +1952,8 @@ function buildDynamic(){
       er.appendChild(b);
     }
   }
-  const dr = !!(ed && (ed.pos || ed.horizon || (ed.ribbon && S.el.form > 0) || ((ed.polka || ed.gblob) && [2,3,6,7,8,9].includes(S.el.lw))));
-  $('dragtip').hidden = !dr; $('dragtip').textContent = ed && ed.horizon ? 'Drag on the artwork to move the centre line' : ed && ed.ribbon ? 'Drag on the artwork to move the liquid blob' : 'Drag on the artwork to move the element';
+  const dr = !!(ed && (ed.bubbles || ed.pos || ed.horizon || (ed.ribbon && S.el.form > 0) || ((ed.polka || ed.gblob) && [2,3,6,7,8,9].includes(S.el.lw))));
+  $('dragtip').hidden = !dr; $('dragtip').textContent = ed && ed.bubbles ? 'Drag a blob on the artwork to move it' : ed && ed.horizon ? 'Drag on the artwork to move the centre line' : ed && ed.ribbon ? 'Drag on the artwork to move the liquid blob' : 'Drag on the artwork to move the element';
   cv.classList.toggle('draggable', dr);
 
   const ch = $('colors'); ch.innerHTML = '';
@@ -1820,6 +1981,7 @@ function syncAll(){
   syncers.forEach(f => f());
   document.querySelectorAll('.chip').forEach(b => b.setAttribute('aria-pressed', b.dataset.id === S.preset));
   if (document.activeElement !== $('txt')) $('txt').value = S.text;
+  { const bt = S.preset === 'btext'; $('txt').hidden = bt; $('txtBub').hidden = !bt; $('txtSlides').hidden = bt; }
   if (document.activeElement !== $('cap')) $('cap').value = S.caption;
   if (document.activeElement !== $('font')) $('font').value = S.font;
   $('capPos').value = S.capPos; $('capRows').hidden = !S.caption.trim();
@@ -1843,6 +2005,7 @@ function applyPreset(id){
   if (keep) Object.assign(S, keep);
   if (shapeImg) S.el.shapeImg = shapeImg;
   if (p.anim && S.anim === 'none') S.anim = p.anim;
+  if (p.bubbles && !(Array.isArray(S.bubbles) && S.bubbles.length)) S.bubbles = BUB_DEF();
   buildDynamic(); dirtyLayout = true; loadFont(); persist(); syncShape();
   if (!playing) render(curT);
 }
