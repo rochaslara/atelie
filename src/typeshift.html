@@ -2074,7 +2074,7 @@ function cap(name){
 }
 const getDownloads = () => cap('downloads');
 getDownloads();
-const inFrame = (() => { try { return window.top !== window.self; } catch (e) { return true; } })();
+const inFrame = (() => { try { void window.top.location.href; return false; } catch (e) { return true; } })();   // true only inside a view from another site
 async function saveFile(blob, name){
   if (!$('modal').hidden) closeModal();
   const dl = await getDownloads();
@@ -2098,6 +2098,8 @@ function showResult(blob, name){
   const mb = (blob.size/1048576).toFixed(1);
   $('rMedia').innerHTML = isVid ? `<video src="${url}" controls autoplay loop muted playsinline></video>` : `<img src="${url}" alt="Exported ${name}">`;
   $('rNote').textContent = `${name} · ${mb} MB. This view blocked the direct download. ${isVid ? 'Use the video menu (⋮) or right-click the video and choose Save video.' : 'Right-click the image and choose Save image, or long-press it on a phone.'}`;
+  const m = $('rMedia').firstElementChild;
+  m.addEventListener('error', () => { const fr = new FileReader(); fr.onload = () => { m.src = fr.result; }; fr.readAsDataURL(blob); }, {once:true});
   $('result').hidden = false;
   $('rClose').onclick = () => { $('result').hidden = true; $('rMedia').innerHTML = ''; URL.revokeObjectURL(url); };
 }

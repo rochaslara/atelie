@@ -53,6 +53,13 @@ nav::-webkit-scrollbar{display:none}
 (() => {
 'use strict';
 const APPS = /*APPS*/{};
+// Exports from the tools (each runs in its own frame) are handed to Claude's save feature from here,
+// as a file object made in this page: one made inside a tool's frame is rejected.
+window.__atelieSave = async (filename, buf, type) => {
+  const c = window.claude; const dl = c && c.use ? await c.use('downloads') : null;
+  if (!dl) { const e = new Error('Saving is not available in this view.'); e.code = 'unavailable'; throw e; }
+  return dl.save({ filename, data: new Blob([buf], { type: type || '' }) });
+};
 const TOOLS = [
   {id:'type', name:'Typeshift', kind:'Kinetic type', color:'--c-type'},
   {id:'carousel', name:'Carrossel', kind:'Carousels', color:'--c-carousel'},
