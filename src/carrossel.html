@@ -527,7 +527,10 @@ const TEMPLATES=[
   // [x,y,rx,ry, slot width, slot height, which card side runs along the tunnel]
   const walls=[[-a,0,0,PI/2,D,b*1.5,'w'],[a,0,0,-PI/2,D,b*1.5,'w'],[0,-b,-PI/2,0,a*1.3,D,'h'],[0,b,PI/2,0,a*1.3,D,'h']];
   const r=c.w/c.h,fit=(W,H)=>r>W/H?[W,W/r]:[H*r,H];   // card ratio, fitted inside the wall slot
-  walls.forEach(([x,y,rx,ry,W0,H0,along],wi)=>{const [w,h]=fit(W0,H0),sp=(along==='w'?w:h)+c.g*2.2;   // Spacing = gap between cards along the tunnel
+  const ks=S.card.size/50;   // Size: 50% is the original look
+  walls.forEach(([x,y,rx,ry,W0,H0,along],wi)=>{let [w,h]=fit(W0,H0);
+   const cap=Math.min(ks,along==='w'?1.2/h:(2*a*.96)/w);w*=cap;h*=cap;   // never wider/taller than the wall it sits on
+   const sp=(along==='w'?w:h)+c.g*2.2;   // Spacing = gap between cards along the tunnel
    const N=Math.min(40,Math.ceil(9.5*1.15/sp));   // enough cards to reach the same depth whatever the spacing
    each(c,-1,N,(k,it)=>{const z=-(k+.6)*sp,far=-z/1.15;o.push({it,w,h,x,y,z,rx,ry,unmirror:1,noShadow:1,op:sstep(-.9,-.3,k)*(1-sstep(6,8.5,far)),dim:clamp(far/9)*.6})},c.sl+wi*.5)});return o}},
 {id:'cardGlobe',name:'Card Globe',cat:'3d',kind:'flow',size:54,
