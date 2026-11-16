@@ -226,6 +226,7 @@ select{width:100%;background:var(--bg);border:1px solid var(--line);border-radiu
       <div class="sec-head"><h2>Images</h2><span class="count" id="count"></span></div>
       <div class="add">
         <button class="btn" id="addBtn">+ Add images</button>
+        <button class="btn ghost" id="sampleBtn" type="button" hidden>Add sample images</button>
         <input type="file" id="fileIn" accept="image/*" multiple hidden>
       </div>
       <div class="thumbs" id="thumbs"></div>
@@ -524,7 +525,8 @@ const TEMPLATES=[
 {id:'galleryTunnel',name:'Gallery Tunnel',cat:'3d',kind:'flow',size:50,
  f(c){const o=[],a=c.A*.62+.25,b=.62,sp=1.15;c.cam={eye:[0,0,0],fov:72*PI/180};
   const walls=[[-a,0,0,PI/2,sp*.82,b*1.5],[a,0,0,-PI/2,sp*.82,b*1.5],[0,-b,-PI/2,0,a*1.3,sp*.82],[0,b,PI/2,0,a*1.3,sp*.82]];
-  walls.forEach(([x,y,rx,ry,w,h],wi)=>each(c,-1,9,(k,it)=>{const z=-(k+.6)*sp;o.push({it,w,h,x,y,z,rx,ry,unmirror:1,noShadow:1,op:sstep(-.9,-.3,k)*(1-sstep(6,8.5,k)),dim:clamp(k/9)*.6})},c.sl+wi*.5));return o}},
+  const r=c.w/c.h,fit=(W,H)=>r>W/H?[W,W/r]:[H*r,H];   // card ratio, fitted inside the wall slot
+  walls.forEach(([x,y,rx,ry,W0,H0],wi)=>each(c,-1,9,(k,it)=>{const z=-(k+.6)*sp,[w,h]=fit(W0,H0);o.push({it,w,h,x,y,z,rx,ry,unmirror:1,noShadow:1,op:sstep(-.9,-.3,k)*(1-sstep(6,8.5,k)),dim:clamp(k/9)*.6})},c.sl+wi*.5));return o}},
 {id:'cardGlobe',name:'Card Globe',cat:'3d',kind:'flow',size:54,
  f(c){const o=[],M=28,R=c.sh*.78,cw=c.w*.27,ch=c.h*.27,g={ry:-TAU*c.p,rx:.22,z:-R};
   for(let j=0;j<M;j++){const y=1-2*(j+.5)/M,r=Math.sqrt(1-y*y),ph=j*2.39996,x=Math.cos(ph)*r,z=Math.sin(ph)*r;
@@ -883,6 +885,7 @@ function selectTemplate(id){const t=TPL[id];S.preset=id;if(t.size)S.card.size=t.
 /* ============================== Image thumbnails ============================== */
 let dragId=null;
 function renderThumbs(){const wrap=$('#thumbs');wrap.innerHTML='';let n=0;
+  {const hasS=images.some(i=>i.sample),hasR=images.some(i=>!i.sample),sb=$('#sampleBtn');sb.hidden=!hasR;sb.textContent=hasS?'Remove samples':'Add sample images'}
   images.forEach(im=>{const b=document.createElement('div');b.className='thumb'+(im.on?'':' off')+(im.id===frId?' editing':'');b.tabIndex=0;b.draggable=true;b.dataset.id=im.id;
     b.setAttribute('role','button');b.setAttribute('aria-pressed',String(im.on));b.setAttribute('aria-label',`${im.name}, ${im.on?'shown':'hidden'}`);
     const img=document.createElement('img');img.src=im.thumb;img.alt='';b.appendChild(img);
@@ -1062,7 +1065,9 @@ function wire(){
   $('#fileIn').addEventListener('change',e=>{addFiles(e.target.files);e.target.value=''});
   $('#allBtn').addEventListener('click',()=>{images.forEach(i=>i.on=true);renderThumbs();persist()});
   $('#noneBtn').addEventListener('click',()=>{images.forEach(i=>i.on=false);renderThumbs();persist()});
-  $('#clearBtn').addEventListener('click',()=>{images=[];renderThumbs();persist()});
+  $('#clearBtn').addEventListener('click',()=>{images=makeSamples();renderThumbs();persist()});   // back to the samples, never an empty stage
+  $('#sampleBtn').addEventListener('click',()=>{if(images.some(i=>i.sample))images=images.filter(i=>!i.sample);else images=images.concat(makeSamples());
+    if(!images.length)images=makeSamples();renderThumbs();persist()});
   $('#bgImgBtn').addEventListener('click',()=>$('#bgFile').click());
   $('#bgFile').addEventListener('change',async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;try{const b=await fromBlob(f,'bg');bgImage={src:b.src,w:b.w,h:b.h,blob:f,anim:b.anim};persist();queueThumbs()}catch(err){}});
   const sw=$('#swatches');SWATCHES.forEach(([a,b])=>{const x=document.createElement('button');x.type='button';x.style.background=`linear-gradient(135deg,${a} 50%,${b} 50%)`;x.setAttribute('aria-label',`Colors ${a} and ${b}`);x.addEventListener('click',()=>{S.bg.c1=a;S.bg.c2=b;changed('bg.c1')});sw.appendChild(x)});
