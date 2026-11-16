@@ -523,10 +523,13 @@ const TEMPLATES=[
  f(c){const e=c.e;return[card(c,c.it(c.k+1),{z:-.06,scale:.9+.1*e,dim:.4*(1-e)}),
   card(c,c.it(c.k),{x:-c.w/2,pivot:[-.5,0],ry:-e*1.8,op:1-sstep(.7,1,e),dim:e*.3})]}},
 {id:'galleryTunnel',name:'Gallery Tunnel',cat:'3d',kind:'flow',size:50,
- f(c){const o=[],a=c.A*.62+.25,b=.62,sp=1.15;c.cam={eye:[0,0,0],fov:72*PI/180};
-  const walls=[[-a,0,0,PI/2,sp*.82,b*1.5],[a,0,0,-PI/2,sp*.82,b*1.5],[0,-b,-PI/2,0,a*1.3,sp*.82],[0,b,PI/2,0,a*1.3,sp*.82]];
+ f(c){const o=[],a=c.A*.62+.25,b=.62,D=.94;c.cam={eye:[0,0,0],fov:72*PI/180};
+  // [x,y,rx,ry, slot width, slot height, which card side runs along the tunnel]
+  const walls=[[-a,0,0,PI/2,D,b*1.5,'w'],[a,0,0,-PI/2,D,b*1.5,'w'],[0,-b,-PI/2,0,a*1.3,D,'h'],[0,b,PI/2,0,a*1.3,D,'h']];
   const r=c.w/c.h,fit=(W,H)=>r>W/H?[W,W/r]:[H*r,H];   // card ratio, fitted inside the wall slot
-  walls.forEach(([x,y,rx,ry,W0,H0],wi)=>each(c,-1,9,(k,it)=>{const z=-(k+.6)*sp,[w,h]=fit(W0,H0);o.push({it,w,h,x,y,z,rx,ry,unmirror:1,noShadow:1,op:sstep(-.9,-.3,k)*(1-sstep(6,8.5,k)),dim:clamp(k/9)*.6})},c.sl+wi*.5));return o}},
+  walls.forEach(([x,y,rx,ry,W0,H0,along],wi)=>{const [w,h]=fit(W0,H0),sp=(along==='w'?w:h)+c.g*2.2;   // Spacing = gap between cards along the tunnel
+   const N=Math.min(40,Math.ceil(9.5*1.15/sp));   // enough cards to reach the same depth whatever the spacing
+   each(c,-1,N,(k,it)=>{const z=-(k+.6)*sp,far=-z/1.15;o.push({it,w,h,x,y,z,rx,ry,unmirror:1,noShadow:1,op:sstep(-.9,-.3,k)*(1-sstep(6,8.5,far)),dim:clamp(far/9)*.6})},c.sl+wi*.5)});return o}},
 {id:'cardGlobe',name:'Card Globe',cat:'3d',kind:'flow',size:54,
  f(c){const o=[],M=28,R=c.sh*.78,cw=c.w*.27,ch=c.h*.27,g={ry:-TAU*c.p,rx:.22,z:-R};
   for(let j=0;j<M;j++){const y=1-2*(j+.5)/M,r=Math.sqrt(1-y*y),ph=j*2.39996,x=Math.cos(ph)*r,z=Math.sin(ph)*r;
